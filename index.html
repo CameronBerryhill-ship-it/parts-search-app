@@ -551,12 +551,61 @@
 
     async function fileToRows(file) {
       const name = file.name.toLowerCase();
-      if (name.endsWith('.csv')) return parseCSV(await file.text());
+      if (name.endsWith('.csv')) {
+        showMessage(el.uploadMessage, 'Reading CSV file...', 'warning');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const rows = parseCSV(await file.text());
+        setProgress(20);
+        return rows;
+      }
       if ((name.endsWith('.xlsx') || name.endsWith('.xls')) && window.XLSX) {
+        showMessage(el.uploadMessage, 'Reading spreadsheet file...', 'warning');
+        await new Promise(resolve => setTimeout(resolve, 0));
         const buffer = await file.arrayBuffer();
+        setProgress(8);
+
+        showMessage(el.uploadMessage, 'Opening spreadsheet workbook...', 'warning');
+        await new Promise(resolve => setTimeout(resolve, 0));
         const wb = XLSX.read(buffer, { type: 'array' });
         const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        return XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+        if (!firstSheet || !firstSheet['!ref']) return [];
+
+        const range = XLSX.utils.decode_range(firstSheet['!ref']);
+        const headerRows = XLSX.utils.sheet_to_json(firstSheet, {
+          header: 1,
+          range: { s: { r: range.s.r, c: range.s.c }, e: { r: range.s.r, c: range.e.c } },
+          blankrows: false,
+          defval: ''
+        });
+        const headers = (headerRows[0] || []).map(value => String(value ?? '').trim());
+        const totalDataRows = Math.max(0, range.e.r - range.s.r);
+        if (!headers.length || totalDataRows === 0) return [];
+
+        const chunkSize = 5000;
+        const rows = [];
+        for (let start = range.s.r + 1; start <= range.e.r; start += chunkSize) {
+          const end = Math.min(start + chunkSize - 1, range.e.r);
+          const chunk = XLSX.utils.sheet_to_json(firstSheet, {
+            header: headers,
+            range: { s: { r: start, c: range.s.c }, e: { r: end, c: range.e.c } },
+            blankrows: false,
+            defval: ''
+          }).map(row => {
+            const cleaned = {};
+            headers.forEach(header => {
+              cleaned[header] = String(row[header] ?? '').trim();
+            });
+            return cleaned;
+          });
+          rows.push(...chunk);
+
+          const processed = Math.min(totalDataRows, end - range.s.r);
+          const pct = 8 + (processed / totalDataRows) * 22;
+          setProgress(pct);
+          showMessage(el.uploadMessage, `Reading spreadsheet... ${processed.toLocaleString()} / ${totalDataRows.toLocaleString()} rows`, 'warning');
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        return rows;
       }
       throw new Error('Unsupported file type. Use CSV, XLSX, or XLS.');
     }
@@ -1151,9 +1200,16 @@
         const rows = await fileToRows(file);
         if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
 
+        showMessage(el.uploadMessage, `File loaded. ${rows.length.toLocaleString()} rows found. Preparing duplicate check...`, 'warning');
+        setProgress(35);
+        await new Promise(resolve => setTimeout(resolve, 0));
+
         const sourceProfile = inferSourceProfile(file.name, rows);
         state.review.rowsScanned = rows.length;
 
+        showMessage(el.uploadMessage, 'Loading existing parts for duplicate check...', 'warning');
+        setProgress(40);
+        await new Promise(resolve => setTimeout(resolve, 0));
         const existing = await fetchAllParts('ro_count', false);
         const exactMap = new Map();
         const normalizedMap = new Map();
@@ -1189,13 +1245,14 @@
           }
 
           if ((i + 1) % batchSize === 0 || i === rows.length - 1) {
-            const pct = ((i + 1) / rows.length) * 100;
+            const pct = 40 + ((i + 1) / rows.length) * 55;
             setProgress(pct);
             showMessage(el.uploadMessage, `Scanning file... ${(i + 1).toLocaleString()} / ${rows.length.toLocaleString()} rows`, 'warning');
             await new Promise(resolve => setTimeout(resolve, 0));
           }
         }
 
+        setProgress(100);
         renderReview();
         showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
       } catch (err) {
