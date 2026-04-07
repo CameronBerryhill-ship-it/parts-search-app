@@ -298,6 +298,7 @@
       allParts: [],
       filteredParts: [],
       review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
+      reviewDisplay: { exactLimit: 25, possibleLimit: 25, newLimit: 25 },
       supabase: null
     };
 
@@ -407,6 +408,38 @@
       return '';
     }
 
+    function buildImportedNotes(row) {
+      const extraPairs = [
+        ['Model Concat', ['Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat']],
+        ['MM Category', ['MM Category', 'MM CATEGORY', 'mm category', 'mm_category']],
+        ['Last Used Cost', ['Last Used Cost', 'LAST USED COST', 'last used cost', 'LastUsedCost']],
+        ['LastUsedPart_CHGAMT', ['LastUsedPart_CHGAMT', 'Last Used Part CHGAMT', 'LASTUSEDPART_CHGAMT', 'lastusedpart_chgamt']]
+      ];
+      const extras = extraPairs
+        .map(([label, keys]) => {
+          const value = readRowValue(row, keys);
+          return value ? `${label}: ${value}` : '';
+        })
+        .filter(Boolean);
+      return extras.join(' | ');
+    }
+
+    function buildExistingLookup(parts) {
+      const exactMap = new Map();
+      const normalizedMap = new Map();
+
+      parts.forEach(part => {
+        const exactKey = String(part.part_number_original || '').trim();
+        const normalizedKey = String(part.part_number_normalized || '').trim();
+
+        if (exactKey && !exactMap.has(exactKey)) exactMap.set(exactKey, part);
+        if (normalizedKey && !normalizedMap.has(normalizedKey)) normalizedMap.set(normalizedKey, part);
+      });
+
+      return { exactMap, normalizedMap };
+    }
+
+
     function formatDate(value) {
       if (!value) return '';
       const d = new Date(value);
@@ -475,6 +508,7 @@
 
     function resetReview() {
       state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
+      state.reviewDisplay = { exactLimit: 25, possibleLimit: 25, newLimit: 25 };
       el.reviewCard.classList.add('hidden');
       el.reviewList.innerHTML = '';
       updateStats();
@@ -482,15 +516,25 @@
 
     function renderReview() {
       el.reviewCard.classList.remove('hidden');
-      el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
-      el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
-      el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
+      const activeNew = state.review.newParts.filter(x => !x.skip);
+      const activeExact = state.review.exactDuplicates.filter(x => !x.skip);
+      const activePossible = state.review.possibleDuplicates.filter(x => !x.skip);
+
+      el.reviewNew.textContent = activeNew.length;
+      el.reviewExact.textContent = activeExact.length;
+      el.reviewPossible.textContent = activePossible.length;
       el.reviewRows.textContent = state.review.rowsScanned;
+
       let html = '';
-      if (state.review.exactDuplicates.length) {
-        html += '<h3>Exact Duplicates</h3>';
-        state.review.exactDuplicates.forEach((item, index) => {
-          if (item.skip) return;
+
+      const exactToShow = activeExact.slice(0, state.reviewDisplay.exactLimit);
+      if (activeExact.length) {
+        html += `<h3>Exact Duplicates</h3>`;
+        if (activeExact.length > exactToShow.length) {
+          html += `<div class="notice warning">Showing ${exactToShow.length} of ${activeExact.length} exact duplicates to keep the page fast.</div>`;
+        }
+        exactToShow.forEach(item => {
+          const index = state.review.exactDuplicates.indexOf(item);
           html += `<div class="review-item">
             <span class="pill red">Exact Duplicate</span>
             <div class="review-grid" style="margin-top:10px;">
@@ -515,11 +559,19 @@
             </div>
           </div>`;
         });
+        if (activeExact.length > exactToShow.length) {
+          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('exact')">Show More Exact Duplicates</button></div>`;
+        }
       }
-      if (state.review.possibleDuplicates.length) {
-        html += '<h3>Possible Duplicates</h3>';
-        state.review.possibleDuplicates.forEach((item, index) => {
-          if (item.skip) return;
+
+      const possibleToShow = activePossible.slice(0, state.reviewDisplay.possibleLimit);
+      if (activePossible.length) {
+        html += `<h3>Possible Duplicates</h3>`;
+        if (activePossible.length > possibleToShow.length) {
+          html += `<div class="notice warning">Showing ${possibleToShow.length} of ${activePossible.length} possible duplicates to keep the page fast.</div>`;
+        }
+        possibleToShow.forEach(item => {
+          const index = state.review.possibleDuplicates.indexOf(item);
           html += `<div class="review-item">
             <span class="pill orange">Possible Duplicate</span>
             <div class="review-grid" style="margin-top:10px;">
@@ -547,11 +599,18 @@
             </div>
           </div>`;
         });
+        if (activePossible.length > possibleToShow.length) {
+          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('possible')">Show More Possible Duplicates</button></div>`;
+        }
       }
-      if (state.review.newParts.length) {
-        html += '<h3>New Parts Ready to Import</h3>';
-        state.review.newParts.forEach(item => {
-          if (item.skip) return;
+
+      const newToShow = activeNew.slice(0, state.reviewDisplay.newLimit);
+      if (activeNew.length) {
+        html += `<h3>New Parts Ready to Import</h3>`;
+        if (activeNew.length > newToShow.length) {
+          html += `<div class="notice warning">Showing ${newToShow.length} of ${activeNew.length} new parts to keep the page fast.</div>`;
+        }
+        newToShow.forEach(item => {
           html += `<div class="review-item">
             <span class="pill green">New Part</span>
             <div style="margin-top:10px;">
@@ -562,56 +621,85 @@
             </div>
           </div>`;
         });
+        if (activeNew.length > newToShow.length) {
+          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('new')">Show More New Parts</button></div>`;
+        }
       }
+
       if (!html) html = '<div class="notice success">Nothing left to review.</div>';
       el.reviewList.innerHTML = html;
       updateStats();
     }
 
+    window.showMoreReview = function(type) {
+      if (type === 'exact') state.reviewDisplay.exactLimit += 25;
+      if (type === 'possible') state.reviewDisplay.possibleLimit += 25;
+      if (type === 'new') state.reviewDisplay.newLimit += 25;
+      renderReview();
+    };
+
     async function scanUpload() {
       try {
-        showMessage(el.uploadMessage, '', 'success');
+        showMessage(el.uploadMessage, 'Scanning file. Large files can take a minute...', 'warning');
         resetReview();
         const file = el.partsFile.files[0];
         if (!file) return showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
+
         const rows = await fileToRows(file);
         if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
+
         state.review.rowsScanned = rows.length;
-        const { data: existingParts, error } = await state.supabase.from('parts').select('*');
-        if (error) throw error;
-        const existing = existingParts || [];
+
+        const existing = await fetchAllParts('ro_count', false);
+        const { exactMap, normalizedMap } = buildExistingLookup(existing);
+
         rows.forEach(row => {
-          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER']);
-          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc', 'LINEDESC', 'LineDesc', 'line_desc']);
-          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand', 'MFGCODE', 'mfgcode', 'mfg_code']);
-          const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
-          const modelConcat = readRowValue(row, ['Model Concat', 'ModelConcat', 'model_concat']);
-          const mmCategory = readRowValue(row, ['MM Category', 'MMCategory', 'mm_category']);
-          const lastUsedCost = readRowValue(row, ['Last Used Cost', 'LastUsedCost', 'last_used_cost']);
-          const lastChargeAmount = readRowValue(row, ['LastUsedPart_CHGAMT', 'CHGAMT', 'charge_amount']);
-          const notes = [
-            readRowValue(row, ['notes', 'Notes']),
-            modelConcat ? `Model: ${modelConcat}` : '',
-            mmCategory ? `Category: ${mmCategory}` : '',
-            lastUsedCost ? `Last Used Cost: ${lastUsedCost}` : '',
-            lastChargeAmount ? `Charge Amount: ${lastChargeAmount}` : ''
-          ].filter(Boolean).join(' | ');
+          const original = readRowValue(row, [
+            'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber',
+            'PARTNUMBER', 'PartNumber', 'Part Num', 'PART NUM'
+          ]);
+          const description = readRowValue(row, [
+            'description', 'Description', 'DESC', 'desc',
+            'LINEDESC', 'LineDesc', 'LINE DESC', 'line description'
+          ]);
+          const manufacturer = readRowValue(row, [
+            'manufacturer', 'Manufacturer', 'brand', 'Brand',
+            'MFGCODE', 'MfgCode', 'MFG Code', 'mfgcode', 'vendor', 'Vendor'
+          ]);
+          const roCountRaw = readRowValue(row, [
+            'ro_count', 'RO Count', 'ro count', 'RO_COUNT',
+            'ROCOUNT', 'Ro Count'
+          ]);
+          const notes = [readRowValue(row, ['notes', 'Notes']), buildImportedNotes(row)].filter(Boolean).join(' | ');
+
           if (!original) return;
+
           const normalized = normalizePartNumber(original);
           const payload = {
             part_number_original: original,
             part_number_normalized: normalized,
-            description, manufacturer,
+            description,
+            manufacturer,
             ro_count: Number(roCountRaw || 0),
             notes,
             uploaded_by: state.user?.id || null
           };
-          const exact = existing.find(x => String(x.part_number_original || '').trim() === original.trim());
-          if (exact) return state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
-          const possible = existing.find(x => String(x.part_number_normalized || '').trim() === normalized && String(x.part_number_original || '').trim() !== original.trim());
-          if (possible) return state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+
+          const exact = exactMap.get(String(original).trim());
+          if (exact) {
+            state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
+            return;
+          }
+
+          const possible = normalizedMap.get(normalized);
+          if (possible && String(possible.part_number_original || '').trim() !== String(original).trim()) {
+            state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+            return;
+          }
+
           state.review.newParts.push({ ...payload, skip: false });
         });
+
         renderReview();
         showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
       } catch (err) {
