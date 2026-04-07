@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
   <title>Internal Parts Search – Shared Auth Version</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
   <style>
     :root{
       --bg:#08111f; --bg2:#0f172a; --panel:#111827; --line:#2b3a53;
@@ -314,7 +314,9 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
     const SETTINGS_KEY = "advisor_shared_parts_search_settings_auth_v1";
     const LOCAL_FALLBACK_KEY = "advisor_shared_parts_local_fallback_auth_v1";
     const brands = {
@@ -524,7 +526,7 @@
         return;
       }
       try{
-        supabase = window.supabase.createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+        supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
         await refreshAuthState();
         await loadFromRemote();
         subscribeRealtime();
@@ -920,6 +922,7 @@
     updateBrandOptions();
     loadLocalFallback();
     render();
+    setAdminUI();
     populateSettingsForm();
     connectSupabase();
   </script>
