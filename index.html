@@ -1,813 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shared Parts Database</title>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #111827;
-      --panel-2: #1f2937;
-      --muted: #94a3b8;
-      --text: #e5e7eb;
-      --accent: #22c55e;
-      --warn: #f59e0b;
-      --danger: #ef4444;
-      --border: #334155;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(180deg, #020617 0%, #111827 100%);
-      color: var(--text);
-    }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    .card {
-      background: rgba(17, 24, 39, 0.95);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.25);
-      margin-bottom: 18px;
-    }
-    h1, h2, h3, h4, p { margin-top: 0; }
-    .grid { display: grid; gap: 16px; }
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (max-width: 900px) {
-      .grid-2, .grid-3, .toolbar, .stats, .review-grid { grid-template-columns: 1fr !important; }
-    }
-    input, select, button, textarea {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: #0b1220;
-      color: var(--text);
-      padding: 12px 14px;
-      font-size: 14px;
-    }
-    button {
-      cursor: pointer;
-      background: var(--accent);
-      color: #052e16;
-      font-weight: 700;
-      border: none;
-    }
-    button.secondary {
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    button.warn { background: var(--warn); color: #111827; }
-    button.danger { background: var(--danger); color: white; }
-    .muted { color: var(--muted); }
-    .hidden { display: none !important; }
-    .toolbar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
-    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-    .stat {
-      background: #0b1220;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-    }
-    .stat .big { font-size: 28px; font-weight: 800; }
-    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; }
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      vertical-align: top;
-    }
-    th {
-      background: #0b1220;
-      cursor: pointer;
-      user-select: none;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    tr:hover td { background: rgba(255,255,255,.02); }
-    .pill {
-      display: inline-block;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .pill.green { background: rgba(34,197,94,.18); color: #86efac; }
-    .pill.orange { background: rgba(245,158,11,.18); color: #fcd34d; }
-    .pill.red { background: rgba(239,68,68,.18); color: #fca5a5; }
-    .review-item {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      background: #0b1220;
-      margin-bottom: 12px;
-    }
-    .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-    .section-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .notice {
-      padding: 12px 14px;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      border: 1px solid var(--border);
-      background: #0b1220;
-      white-space: pre-wrap;
-    }
-    .success { border-color: rgba(34,197,94,.4); }
-    .warning { border-color: rgba(245,158,11,.4); }
-    .error { border-color: rgba(239,68,68,.4); }
-    .footer-space { height: 24px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared Parts Database</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+body{font-family:Arial;background:#0f172a;color:#fff;padding:20px}
+button{padding:10px;margin-top:10px;background:#22c55e;border:none;border-radius:6px;cursor:pointer}
+input{padding:10px;margin:5px;width:100%}
+.card{background:#111827;padding:20px;border-radius:10px;margin-bottom:20px}
+.notice{padding:10px;margin-top:10px;border-radius:6px}
+.success{background:#14532d}
+.error{background:#7f1d1d}
+.warning{background:#78350f}
+.hidden{display:none}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Shared Parts Database</h1>
-      <p class="muted">Users can upload parts, keep original part numbers intact, search, sort, and review duplicates before import.</p>
-      <div id="bootMessage"></div>
-    </div>
 
-    <div id="authCard" class="card">
-      <div class="section-title">
-        <h2>Login</h2>
-        <span class="muted">Required before upload or editing</span>
-      </div>
-      <div id="authMessage"></div>
-      <div class="grid grid-2">
-        <div>
-          <label>Email</label>
-          <input id="email" type="email" placeholder="name@example.com" />
-        </div>
-        <div>
-          <label>Password</label>
-          <input id="password" type="password" placeholder="Password" />
-        </div>
-      </div>
-      <div class="actions">
-        <button id="loginBtn" type="button">Login</button>
-        <button id="signupBtn" type="button" class="secondary">Create Account</button>
-      </div>
-    </div>
+<div class="card">
+<h2>Login</h2>
+<div id="authMessage"></div>
+<input id="email" placeholder="email">
+<input id="password" type="password" placeholder="password">
+<button onclick="login()">Login</button>
+<button onclick="signup()">Create Account</button>
+</div>
 
-    <div id="appShell" class="hidden">
-      <div class="card">
-        <div class="section-title">
-          <div>
-            <h2>Dashboard</h2>
-            <p class="muted" id="userLine">Signed in</p>
-          </div>
-          <div class="actions">
-            <button id="refreshBtn" type="button" class="secondary">Refresh</button>
-            <button id="logoutBtn" type="button" class="danger">Logout</button>
-          </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><div class="muted">Total Parts</div><div class="big" id="statTotal">0</div></div>
-          <div class="stat"><div class="muted">Filtered Results</div><div class="big" id="statFiltered">0</div></div>
-          <div class="stat"><div class="muted">Top RO Count</div><div class="big" id="statTopRO">0</div></div>
-          <div class="stat"><div class="muted">Pending Review</div><div class="big" id="statPending">0</div></div>
-        </div>
-      </div>
+<div class="card">
+<h2>Upload Parts</h2>
+<div id="uploadMessage"></div>
+<input type="file" id="file">
+<button onclick="scanUpload()">Scan Upload</button>
+</div>
 
-      <div class="card">
-        <div class="section-title">
-          <div>
-            <h2>Upload Parts List</h2>
-            <p class="muted">Supports CSV now and XLSX/XLS if SheetJS loads. Original part numbers stay exactly as entered.</p>
-          </div>
-        </div>
-        <div id="uploadMessage"></div>
-        <div class="grid grid-3">
-          <div>
-            <label>Choose file</label>
-            <input id="partsFile" type="file" accept=".csv,.xlsx,.xls" />
-          </div>
-          <div>
-            <label>Expected columns</label>
-            <input value="part_number, description, manufacturer, ro_count, notes" readonly />
-          </div>
-          <div>
-            <label>Import action</label>
-            <button id="scanUploadBtn" type="button">Scan Upload</button>
-          </div>
-        </div>
-      </div>
+<script>
+const supabase = window.supabase.createClient(
+  "https://asktsoajslylhuxajnic.supabase.co",
+  "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam"
+);
 
-      <div id="reviewCard" class="card hidden">
-        <div class="section-title">
-          <div>
-            <h2>Upload Review</h2>
-            <p class="muted">Review exact duplicates and possible duplicates before importing.</p>
-          </div>
-          <div class="actions">
-            <button id="importApprovedBtn" type="button">Import Approved New Parts</button>
-          </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><div class="muted">New Parts</div><div class="big" id="reviewNew">0</div></div>
-          <div class="stat"><div class="muted">Exact Duplicates</div><div class="big" id="reviewExact">0</div></div>
-          <div class="stat"><div class="muted">Possible Duplicates</div><div class="big" id="reviewPossible">0</div></div>
-          <div class="stat"><div class="muted">Rows Scanned</div><div class="big" id="reviewRows">0</div></div>
-        </div>
-        <div id="reviewList"></div>
-      </div>
+function showMessage(el, text, type){
+  el.innerHTML = text ? `<div class='notice ${type}'>${text}</div>` : "";
+}
 
-      <div class="card">
-        <div class="section-title">
-          <div>
-            <h2>Search and Sort Parts</h2>
-            <p class="muted">Search by part number, description, or manufacturer.</p>
-          </div>
-        </div>
-        <div class="toolbar">
-          <div>
-            <label>Search</label>
-            <input id="searchInput" placeholder="Type a part number, description, or manufacturer" />
-          </div>
-          <div>
-            <label>Sort by</label>
-            <select id="sortBy">
-              <option value="ro_count">RO Count</option>
-              <option value="part_number_original">Part Number</option>
-              <option value="description">Description</option>
-              <option value="manufacturer">Manufacturer</option>
-              <option value="created_at">Date Added</option>
-              <option value="updated_at">Updated</option>
-            </select>
-          </div>
-          <div>
-            <label>Direction</label>
-            <select id="sortDirection">
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </div>
-          <div>
-            <label>&nbsp;</label>
-            <button id="exportCsvBtn" type="button" class="secondary">Export Filtered CSV</button>
-          </div>
-        </div>
-      </div>
+function normalize(p){return p.toUpperCase().replace(/[^A-Z0-9]/g,"")}
 
-      <div class="card">
-        <div class="section-title">
-          <div>
-            <h2>Parts Table</h2>
-            <p class="muted">Shared master list.</p>
-          </div>
-        </div>
-        <div style="overflow:auto; max-height: 65vh;">
-          <table>
-            <thead>
-              <tr>
-                <th data-sort="part_number_original">Part Number</th>
-                <th data-sort="description">Description</th>
-                <th data-sort="manufacturer">Manufacturer</th>
-                <th data-sort="ro_count">RO Count</th>
-                <th data-sort="created_at">Added</th>
-                <th data-sort="updated_at">Updated</th>
-                <th>Uploaded By</th>
-              </tr>
-            </thead>
-            <tbody id="partsTbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="footer-space"></div>
-  </div>
+function read(row, keys){
+  for(const k of keys){ if(row[k]) return row[k] }
+  return ""
+}
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script>
-    const SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
+function parseCSV(text){
+  const lines = text.split("\n");
+  const headers = lines[0].split(",");
+  return lines.slice(1).map(l=>{
+    const vals = l.split(",");
+    let o={};
+    headers.forEach((h,i)=>o[h.trim()]=vals[i]);
+    return o;
+  });
+}
 
-    const state = {
-      user: null,
-      allParts: [],
-      filteredParts: [],
-      review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
-      supabase: null
-    };
+async function fileToRows(file){
+  if(file.name.endsWith(".csv")){
+    return parseCSV(await file.text());
+  }
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data);
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+}
 
-    const el = {
-      bootMessage: document.getElementById('bootMessage'),
-      authCard: document.getElementById('authCard'),
-      appShell: document.getElementById('appShell'),
-      authMessage: document.getElementById('authMessage'),
-      uploadMessage: document.getElementById('uploadMessage'),
-      email: document.getElementById('email'),
-      password: document.getElementById('password'),
-      loginBtn: document.getElementById('loginBtn'),
-      signupBtn: document.getElementById('signupBtn'),
-      logoutBtn: document.getElementById('logoutBtn'),
-      refreshBtn: document.getElementById('refreshBtn'),
-      userLine: document.getElementById('userLine'),
-      statTotal: document.getElementById('statTotal'),
-      statFiltered: document.getElementById('statFiltered'),
-      statTopRO: document.getElementById('statTopRO'),
-      statPending: document.getElementById('statPending'),
-      partsFile: document.getElementById('partsFile'),
-      scanUploadBtn: document.getElementById('scanUploadBtn'),
-      reviewCard: document.getElementById('reviewCard'),
-      reviewNew: document.getElementById('reviewNew'),
-      reviewExact: document.getElementById('reviewExact'),
-      reviewPossible: document.getElementById('reviewPossible'),
-      reviewRows: document.getElementById('reviewRows'),
-      reviewList: document.getElementById('reviewList'),
-      importApprovedBtn: document.getElementById('importApprovedBtn'),
-      searchInput: document.getElementById('searchInput'),
-      sortBy: document.getElementById('sortBy'),
-      sortDirection: document.getElementById('sortDirection'),
-      partsTbody: document.getElementById('partsTbody'),
-      exportCsvBtn: document.getElementById('exportCsvBtn')
-    };
+async function login(){
+  const {data,error} = await supabase.auth.signInWithPassword({
+    email:document.getElementById("email").value,
+    password:document.getElementById("password").value
+  });
+  if(error) showMessage(authMessage,error.message,'error');
+  else showMessage(authMessage,'Logged in','success');
+}
 
-    function showMessage(target, text, type = 'success') {
-      target.innerHTML = text ? `<div class="notice ${type}">${text}</div>` : '';
+async function signup(){
+  const {error} = await supabase.auth.signUp({
+    email:document.getElementById("email").value,
+    password:document.getElementById("password").value
+  });
+  if(error) showMessage(authMessage,error.message,'error');
+  else showMessage(authMessage,'Account created','success');
+}
+
+async function scanUpload(){
+  const elMsg = document.getElementById("uploadMessage");
+  showMessage(elMsg,"Scanning...","warning");
+
+  try{
+    const file = document.getElementById("file").files[0];
+    if(!file) return showMessage(elMsg,"Choose file","warning");
+
+    const rows = await fileToRows(file);
+    if(!rows.length) return showMessage(elMsg,"No rows","error");
+
+    let usable = 0;
+
+    rows.forEach(r=>{
+      const p = read(r,['part_number','Part Number']);
+      if(p) usable++;
+    });
+
+    if(!usable){
+      return showMessage(elMsg,"No valid part_number column found","error");
     }
 
-    function escapeHtml(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+    showMessage(elMsg,`Scan complete. Rows: ${rows.length} Usable: ${usable}`,'success');
 
-    function normalizePartNumber(partNumber = '') {
-      return String(partNumber).toUpperCase().replace(/[\s\-./]/g, '').trim();
-    }
+  }catch(e){
+    showMessage(elMsg,e.message,'error');
+  }
+}
+</script>
 
-    function parseCSV(text) {
-      const rows = [];
-      let current = '';
-      let row = [];
-      let inQuotes = false;
-      for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        const next = text[i + 1];
-        if (char === '"') {
-          if (inQuotes && next === '"') { current += '"'; i++; }
-          else { inQuotes = !inQuotes; }
-          continue;
-        }
-        if (char === ',' && !inQuotes) { row.push(current); current = ''; continue; }
-        if ((char === '\n' || char === '\r') && !inQuotes) {
-          if (char === '\r' && next === '\n') i++;
-          row.push(current);
-          if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
-          row = [];
-          current = '';
-          continue;
-        }
-        current += char;
-      }
-      if (current.length || row.length) {
-        row.push(current);
-        if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
-      }
-      if (!rows.length) return [];
-      const headers = rows[0].map(h => String(h).trim());
-      return rows.slice(1).map(cols => {
-        const obj = {};
-        headers.forEach((header, index) => { obj[header] = (cols[index] ?? '').trim(); });
-        return obj;
-      });
-    }
-
-    async function fileToRows(file) {
-      const name = file.name.toLowerCase();
-      if (name.endsWith('.csv')) return parseCSV(await file.text());
-      if ((name.endsWith('.xlsx') || name.endsWith('.xls')) && window.XLSX) {
-        const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, { type: 'array' });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        return XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-      }
-      throw new Error('Unsupported file type. Use CSV, XLSX, or XLS.');
-    }
-
-    function readRowValue(row, keys) {
-      for (const key of keys) {
-        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return String(row[key]).trim();
-      }
-      return '';
-    }
-
-    function formatDate(value) {
-      if (!value) return '';
-      const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
-    }
-
-    function updateStats() {
-      el.statTotal.textContent = state.allParts.length;
-      el.statFiltered.textContent = state.filteredParts.length;
-      el.statTopRO.textContent = state.allParts.length ? Math.max(...state.allParts.map(p => Number(p.ro_count || 0))) : 0;
-      el.statPending.textContent = state.review.exactDuplicates.filter(x => !x.skip).length + state.review.possibleDuplicates.filter(x => !x.skip).length;
-    }
-
-    function renderPartsTable() {
-      if (!state.filteredParts.length) {
-        el.partsTbody.innerHTML = '<tr><td colspan="7" class="muted">No parts found.</td></tr>';
-        return;
-      }
-      el.partsTbody.innerHTML = state.filteredParts.map(part => `
-        <tr>
-          <td>${escapeHtml(part.part_number_original)}</td>
-          <td>${escapeHtml(part.description || '')}</td>
-          <td>${escapeHtml(part.manufacturer || '')}</td>
-          <td>${escapeHtml(part.ro_count || 0)}</td>
-          <td>${escapeHtml(formatDate(part.created_at))}</td>
-          <td>${escapeHtml(formatDate(part.updated_at))}</td>
-          <td>${escapeHtml(part.uploaded_by || '')}</td>
-        </tr>`).join('');
-    }
-
-    function applyFilters() {
-      const q = el.searchInput.value.trim().toLowerCase();
-      const sortBy = el.sortBy.value;
-      const direction = el.sortDirection.value;
-      let parts = [...state.allParts];
-      if (q) {
-        parts = parts.filter(part =>
-          String(part.part_number_original || '').toLowerCase().includes(q) ||
-          String(part.description || '').toLowerCase().includes(q) ||
-          String(part.manufacturer || '').toLowerCase().includes(q)
-        );
-      }
-      parts.sort((a, b) => {
-        let av = a[sortBy] ?? '';
-        let bv = b[sortBy] ?? '';
-        if (sortBy === 'ro_count') {
-          av = Number(av || 0); bv = Number(bv || 0);
-          return direction === 'asc' ? av - bv : bv - av;
-        }
-        av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
-        if (av < bv) return direction === 'asc' ? -1 : 1;
-        if (av > bv) return direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-      state.filteredParts = parts;
-      renderPartsTable();
-      updateStats();
-    }
-
-    async function loadParts() {
-      const { data, error } = await state.supabase.from('parts').select('*').order('ro_count', { ascending: false });
-      if (error) throw error;
-      state.allParts = data || [];
-      applyFilters();
-    }
-
-    function resetReview() {
-      state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
-      el.reviewCard.classList.add('hidden');
-      el.reviewList.innerHTML = '';
-      updateStats();
-    }
-
-    function renderReview() {
-      el.reviewCard.classList.remove('hidden');
-      el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
-      el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
-      el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
-      el.reviewRows.textContent = state.review.rowsScanned;
-      let html = '';
-      if (state.review.exactDuplicates.length) {
-        html += '<h3>Exact Duplicates</h3>';
-        state.review.exactDuplicates.forEach((item, index) => {
-          if (item.skip) return;
-          html += `<div class="review-item">
-            <span class="pill red">Exact Duplicate</span>
-            <div class="review-grid" style="margin-top:10px;">
-              <div>
-                <h4>Uploaded</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
-              </div>
-              <div>
-                <h4>Existing</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
-              </div>
-            </div>
-            <div class="actions">
-              <button type="button" onclick="mergeExact(${index})">Merge Into Existing</button>
-              <button type="button" class="secondary" onclick="skipExact(${index})">Skip</button>
-            </div>
-          </div>`;
-        });
-      }
-      if (state.review.possibleDuplicates.length) {
-        html += '<h3>Possible Duplicates</h3>';
-        state.review.possibleDuplicates.forEach((item, index) => {
-          if (item.skip) return;
-          html += `<div class="review-item">
-            <span class="pill orange">Possible Duplicate</span>
-            <div class="review-grid" style="margin-top:10px;">
-              <div>
-                <h4>Uploaded</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
-                <p><strong>Normalized:</strong> ${escapeHtml(item.uploaded.part_number_normalized)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
-              </div>
-              <div>
-                <h4>Existing</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
-                <p><strong>Normalized:</strong> ${escapeHtml(item.existing.part_number_normalized)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
-              </div>
-            </div>
-            <div class="actions">
-              <button type="button" onclick="mergePossible(${index})">Merge Into Existing</button>
-              <button type="button" class="warn" onclick="keepSeparate(${index})">Keep Separate and Add New</button>
-              <button type="button" class="secondary" onclick="skipPossible(${index})">Skip</button>
-            </div>
-          </div>`;
-        });
-      }
-      if (state.review.newParts.length) {
-        html += '<h3>New Parts Ready to Import</h3>';
-        state.review.newParts.forEach(item => {
-          if (item.skip) return;
-          html += `<div class="review-item">
-            <span class="pill green">New Part</span>
-            <div style="margin-top:10px;">
-              <p><strong>Part #:</strong> ${escapeHtml(item.part_number_original)}</p>
-              <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
-              <p><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer)}</p>
-              <p><strong>RO Count:</strong> ${escapeHtml(item.ro_count)}</p>
-            </div>
-          </div>`;
-        });
-      }
-      if (!html) html = '<div class="notice success">Nothing left to review.</div>';
-      el.reviewList.innerHTML = html;
-      updateStats();
-    }
-
-    async function scanUpload() {
-      try {
-        showMessage(el.uploadMessage, '', 'success');
-        resetReview();
-        const file = el.partsFile.files[0];
-        if (!file) return showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
-        const rows = await fileToRows(file);
-        if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
-        state.review.rowsScanned = rows.length;
-        const { data: existingParts, error } = await state.supabase.from('parts').select('*');
-        if (error) throw error;
-        const existing = existingParts || [];
-        rows.forEach(row => {
-          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber']);
-          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc']);
-          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand']);
-          const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
-          const notes = readRowValue(row, ['notes', 'Notes']);
-          if (!original) return;
-          const normalized = normalizePartNumber(original);
-          const payload = {
-            part_number_original: original,
-            part_number_normalized: normalized,
-            description, manufacturer,
-            ro_count: Number(roCountRaw || 0),
-            notes,
-            uploaded_by: state.user?.id || null
-          };
-          const exact = existing.find(x => String(x.part_number_original || '').trim() === original.trim());
-          if (exact) return state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
-          const possible = existing.find(x => String(x.part_number_normalized || '').trim() === normalized && String(x.part_number_original || '').trim() !== original.trim());
-          if (possible) return state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
-          state.review.newParts.push({ ...payload, skip: false });
-        });
-        renderReview();
-        showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
-      } catch (err) {
-        console.error(err);
-        showMessage(el.uploadMessage, `Scan error: ${escapeHtml(err.message)}`, 'error');
-      }
-    }
-
-    async function mergeExisting(existingId, uploaded) {
-      const { data: current, error: readError } = await state.supabase.from('parts').select('*').eq('id', existingId).single();
-      if (readError) throw readError;
-      const updatePayload = {
-        ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
-        description: current.description || uploaded.description || '',
-        manufacturer: current.manufacturer || uploaded.manufacturer || '',
-        notes: [current.notes, uploaded.notes].filter(Boolean).join(' | '),
-        uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
-      };
-      const { error: updateError } = await state.supabase.from('parts').update(updatePayload).eq('id', existingId);
-      if (updateError) throw updateError;
-    }
-
-    window.mergeExact = async function(index) {
-      try {
-        const item = state.review.exactDuplicates[index];
-        if (!item) return;
-        await mergeExisting(item.existing.id, item.uploaded);
-        item.skip = true;
-        renderReview();
-        await loadParts();
-        showMessage(el.uploadMessage, 'Exact duplicate merged into existing part.', 'success');
-      } catch (err) {
-        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
-      }
-    };
-    window.skipExact = function(index) { const item = state.review.exactDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
-    window.mergePossible = async function(index) {
-      try {
-        const item = state.review.possibleDuplicates[index];
-        if (!item) return;
-        await mergeExisting(item.existing.id, item.uploaded);
-        item.skip = true;
-        renderReview();
-        await loadParts();
-        showMessage(el.uploadMessage, 'Possible duplicate merged into existing part.', 'success');
-      } catch (err) {
-        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
-      }
-    };
-    window.keepSeparate = function(index) {
-      const item = state.review.possibleDuplicates[index];
-      if (item) { state.review.newParts.push({ ...item.uploaded, skip: false }); item.skip = true; renderReview(); }
-    };
-    window.skipPossible = function(index) { const item = state.review.possibleDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
-
-    async function importApproved() {
-      try {
-        const payload = state.review.newParts.filter(x => !x.skip).map(item => ({
-          part_number_original: item.part_number_original,
-          part_number_normalized: item.part_number_normalized,
-          description: item.description,
-          manufacturer: item.manufacturer,
-          ro_count: Number(item.ro_count || 0),
-          notes: item.notes,
-          uploaded_by: state.user?.id || null
-        }));
-        if (!payload.length) return showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
-        const { error } = await state.supabase.from('parts').insert(payload);
-        if (error) throw error;
-        state.review.newParts.forEach(item => item.skip = true);
-        renderReview();
-        await loadParts();
-        showMessage(el.uploadMessage, `${payload.length} new parts imported.`, 'success');
-      } catch (err) {
-        showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
-      }
-    }
-
-    function downloadCsv(filename, rows) {
-      const headers = ['part_number_original', 'description', 'manufacturer', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
-      const csv = [headers.join(',')].concat(rows.map(row => headers.map(key => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    async function afterAuth() {
-      el.authCard.classList.add('hidden');
-      el.appShell.classList.remove('hidden');
-      el.userLine.textContent = `Signed in as ${state.user.email}`;
-      showMessage(el.authMessage, '', 'success');
-      try {
-        await loadParts();
-      } catch (err) {
-        showMessage(el.uploadMessage, `Logged in, but parts table could not load. Run the SQL setup in Supabase first. Error: ${escapeHtml(err.message)}`, 'error');
-      }
-      updateStats();
-    }
-
-    async function login() {
-      try {
-        showMessage(el.authMessage, '', 'success');
-        const email = el.email.value.trim();
-        const password = el.password.value;
-        if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
-        const { data, error } = await state.supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        if (!data.user) throw new Error('Login returned no user.');
-        state.user = data.user;
-        await afterAuth();
-      } catch (err) {
-        showMessage(el.authMessage, `Login failed: ${escapeHtml(err.message)}`, 'error');
-      }
-    }
-
-    async function signup() {
-      try {
-        showMessage(el.authMessage, '', 'success');
-        const email = el.email.value.trim();
-        const password = el.password.value;
-        if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
-        const { data, error } = await state.supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.user) {
-          showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
-        } else {
-          showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
-        }
-      } catch (err) {
-        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
-      }
-    }
-
-    async function logout() {
-      await state.supabase.auth.signOut();
-      state.user = null;
-      state.allParts = [];
-      state.filteredParts = [];
-      resetReview();
-      el.authCard.classList.remove('hidden');
-      el.appShell.classList.add('hidden');
-      showMessage(el.authMessage, 'Signed out.', 'success');
-    }
-
-    async function init() {
-      try {
-        if (!window.supabase || !window.supabase.createClient) {
-          showMessage(el.bootMessage, 'Supabase library did not load. Save the file again, commit, then hard refresh the site.', 'error');
-          return;
-        }
-        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        showMessage(el.bootMessage, 'App loaded.', 'success');
-
-        const { data, error } = await state.supabase.auth.getSession();
-        if (error) throw error;
-
-        const session = data?.session;
-        if (session?.user) {
-          state.user = session.user;
-          await afterAuth();
-        }
-
-        state.supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (session?.user) {
-            state.user = session.user;
-            await afterAuth();
-          } else {
-            state.user = null;
-            el.authCard.classList.remove('hidden');
-            el.appShell.classList.add('hidden');
-          }
-        });
-
-        el.loginBtn.addEventListener('click', login);
-        el.signupBtn.addEventListener('click', signup);
-        el.logoutBtn.addEventListener('click', logout);
-        el.refreshBtn.addEventListener('click', async () => {
-          try { await loadParts(); showMessage(el.uploadMessage, 'Refreshed.', 'success'); }
-          catch (err) { showMessage(el.uploadMessage, `Refresh failed: ${escapeHtml(err.message)}`, 'error'); }
-        });
-        el.scanUploadBtn.addEventListener('click', scanUpload);
-        el.importApprovedBtn.addEventListener('click', importApproved);
-        el.searchInput.addEventListener('input', applyFilters);
-        el.sortBy.addEventListener('change', applyFilters);
-        el.sortDirection.addEventListener('change', applyFilters);
-        el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
-        document.querySelectorAll('th[data-sort]').forEach(th => {
-          th.addEventListener('click', () => {
-            const field = th.getAttribute('data-sort');
-            if (el.sortBy.value === field) el.sortDirection.value = el.sortDirection.value === 'asc' ? 'desc' : 'asc';
-            else el.sortBy.value = field;
-            applyFilters();
-          });
-        });
-      } catch (err) {
-        showMessage(el.bootMessage, `Startup failed: ${escapeHtml(err.message)}`, 'error');
-      }
-    }
-
-    init();
-  </script>
 </body>
 </html>
