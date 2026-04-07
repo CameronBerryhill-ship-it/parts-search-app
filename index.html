@@ -466,37 +466,10 @@
       updateStats();
     }
 
-    async function fetchAllParts(orderBy = 'ro_count', ascending = false) {
-      const pageSize = 1000;
-      let from = 0;
-      let allParts = [];
-      let keepGoing = true;
-
-      while (keepGoing) {
-        const { data, error } = await state.supabase
-          .from('parts')
-          .select('*')
-          .order(orderBy, { ascending })
-          .range(from, from + pageSize - 1);
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          keepGoing = false;
-          break;
-        }
-
-        allParts = allParts.concat(data);
-        from += pageSize;
-
-        if (data.length < pageSize) keepGoing = false;
-      }
-
-      return allParts;
-    }
-
     async function loadParts() {
-      state.allParts = await fetchAllParts('ro_count', false);
+      const { data, error } = await state.supabase.from('parts').select('*').order('ro_count', { ascending: false });
+      if (error) throw error;
+      state.allParts = data || [];
       applyFilters();
     }
 
@@ -604,13 +577,25 @@
         const rows = await fileToRows(file);
         if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
         state.review.rowsScanned = rows.length;
-        const existing = await fetchAllParts('ro_count', false);
+        const { data: existingParts, error } = await state.supabase.from('parts').select('*');
+        if (error) throw error;
+        const existing = existingParts || [];
         rows.forEach(row => {
-          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber']);
-          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc']);
-          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand']);
+          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER']);
+          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc', 'LINEDESC', 'LineDesc', 'line_desc']);
+          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand', 'MFGCODE', 'mfgcode', 'mfg_code']);
           const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
-          const notes = readRowValue(row, ['notes', 'Notes']);
+          const modelConcat = readRowValue(row, ['Model Concat', 'ModelConcat', 'model_concat']);
+          const mmCategory = readRowValue(row, ['MM Category', 'MMCategory', 'mm_category']);
+          const lastUsedCost = readRowValue(row, ['Last Used Cost', 'LastUsedCost', 'last_used_cost']);
+          const lastChargeAmount = readRowValue(row, ['LastUsedPart_CHGAMT', 'CHGAMT', 'charge_amount']);
+          const notes = [
+            readRowValue(row, ['notes', 'Notes']),
+            modelConcat ? `Model: ${modelConcat}` : '',
+            mmCategory ? `Category: ${mmCategory}` : '',
+            lastUsedCost ? `Last Used Cost: ${lastUsedCost}` : '',
+            lastChargeAmount ? `Charge Amount: ${lastChargeAmount}` : ''
+          ].filter(Boolean).join(' | ');
           if (!original) return;
           const normalized = normalizePartNumber(original);
           const payload = {
@@ -754,34 +739,15 @@
         const email = el.email.value.trim();
         const password = el.password.value;
         if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
-
-        el.signupBtn.disabled = true;
-
         const { data, error } = await state.supabase.auth.signUp({ email, password });
-
-        if (error) {
-          const msg = String(error.message || '').toLowerCase();
-          if (msg.includes('rate limit')) {
-            return showMessage(
-              el.authMessage,
-              'Too many signup attempts. Wait a few minutes or try logging in if the account already exists.',
-              'warning'
-            );
-          }
-          return showMessage(el.authMessage, `Sign up failed: ${escapeHtml(error.message)}`, 'error');
-        }
-
+        if (error) throw error;
         if (data.user) {
           showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
         } else {
           showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
         }
       } catch (err) {
-        showMessage(el.authMessage, 'Unexpected error creating account.', 'error');
-      } finally {
-        setTimeout(() => {
-          el.signupBtn.disabled = false;
-        }, 3000);
+        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
       }
     }
 
