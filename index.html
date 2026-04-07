@@ -212,12 +212,56 @@
           </div>
           <div>
             <label>Expected columns</label>
-            <input value="part_number / PARTNUMBER, description / LINEDESC, manufacturer / MFGCODE, vehicle / Model Concat, ro_count / RO Count" readonly />
+            <input value="Middle Mile, Paccar tape, or Freightliner Corcentric files supported (.csv/.xlsx/.xls)" readonly />
           </div>
           <div>
             <label>Import action</label>
             <button id="scanUploadBtn" type="button">Scan Upload</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Add Part Manually</h2>
+            <p class="muted">Add a single part with notes and optional related parts.</p>
+          </div>
+        </div>
+        <div id="manualPartMessage"></div>
+        <div class="grid grid-3">
+          <div>
+            <label>Part Number</label>
+            <input id="manualPartNumber" type="text" placeholder="Enter part number" />
+          </div>
+          <div>
+            <label>Description</label>
+            <input id="manualDescription" type="text" placeholder="Enter description" />
+          </div>
+          <div>
+            <label>Manufacturer</label>
+            <input id="manualManufacturer" type="text" placeholder="Enter manufacturer" />
+          </div>
+          <div>
+            <label>Truck / Model</label>
+            <input id="manualVehicle" type="text" placeholder="Optional truck or model" />
+          </div>
+          <div>
+            <label>RO Count</label>
+            <input id="manualROCount" type="number" min="0" step="1" placeholder="0" />
+          </div>
+          <div>
+            <label>Related Parts</label>
+            <input id="manualRelatedParts" type="text" placeholder="Comma separated part numbers" />
+          </div>
+        </div>
+        <div style="margin-top: 12px;">
+          <label>Notes</label>
+          <textarea id="manualNotes" rows="4" placeholder="Write notes for this part"></textarea>
+        </div>
+        <div class="actions">
+          <button id="addManualPartBtn" type="button">Add Part</button>
+          <button id="clearManualPartBtn" type="button" class="secondary">Clear</button>
         </div>
       </div>
 
@@ -228,6 +272,8 @@
             <p class="muted">Matches by part number + manufacturer. Same part number from different manufacturers stays separate.</p>
           </div>
           <div class="actions">
+            <button id="mergeAllExactBtn" type="button" class="secondary">Merge All Exact Duplicates</button>
+            <button id="mergeAllPossibleBtn" type="button" class="secondary">Merge All Possible Duplicates</button>
             <button id="importApprovedBtn" type="button">Import Approved New Parts</button>
           </div>
         </div>
@@ -266,6 +312,7 @@
               <option value="manufacturer">Manufacturer</option>
               <option value="vehicle">Truck / Model</option>
               <option value="description">Description</option>
+              <option value="notes">Notes</option>
               <option value="created_at">Date Added</option>
               <option value="updated_at">Updated</option>
             </select>
@@ -303,6 +350,7 @@
                 <th data-sort="created_at">Added</th>
                 <th data-sort="updated_at">Updated</th>
                 <th>Uploaded By</th>
+                <th data-sort="notes">Notes / Related</th>
               </tr>
             </thead>
             <tbody id="partsTbody"></tbody>
@@ -353,6 +401,16 @@
       statPending: document.getElementById('statPending'),
       partsFile: document.getElementById('partsFile'),
       scanUploadBtn: document.getElementById('scanUploadBtn'),
+      manualPartMessage: document.getElementById('manualPartMessage'),
+      manualPartNumber: document.getElementById('manualPartNumber'),
+      manualDescription: document.getElementById('manualDescription'),
+      manualManufacturer: document.getElementById('manualManufacturer'),
+      manualVehicle: document.getElementById('manualVehicle'),
+      manualROCount: document.getElementById('manualROCount'),
+      manualRelatedParts: document.getElementById('manualRelatedParts'),
+      manualNotes: document.getElementById('manualNotes'),
+      addManualPartBtn: document.getElementById('addManualPartBtn'),
+      clearManualPartBtn: document.getElementById('clearManualPartBtn'),
       reviewCard: document.getElementById('reviewCard'),
       reviewNew: document.getElementById('reviewNew'),
       reviewExact: document.getElementById('reviewExact'),
@@ -360,6 +418,8 @@
       reviewRows: document.getElementById('reviewRows'),
       reviewList: document.getElementById('reviewList'),
       importApprovedBtn: document.getElementById('importApprovedBtn'),
+      mergeAllExactBtn: document.getElementById('mergeAllExactBtn'),
+      mergeAllPossibleBtn: document.getElementById('mergeAllPossibleBtn'),
       searchInput: document.getElementById('searchInput'),
       vehicleFilter: document.getElementById('vehicleFilter'),
       sortBy: document.getElementById('sortBy'),
@@ -476,6 +536,27 @@
       return parts.map(x => String(x || '').trim()).filter(Boolean).join(' | ');
     }
 
+    function cleanRelatedParts(value) {
+      return [...new Set(
+        String(value || '')
+          .split(',')
+          .map(x => x.trim())
+          .filter(Boolean)
+      )].join(', ');
+    }
+
+    function extractRelatedPartsFromNotes(notes = '') {
+      const match = String(notes || '').match(/(?:^|\|\s*)Related Parts:\s*([^|]+)/i);
+      return match ? match[1].trim() : '';
+    }
+
+    function combineNotesAndRelated(notes, relatedParts) {
+      return appendNotePieces([
+        notes,
+        cleanRelatedParts(relatedParts) ? `Related Parts: ${cleanRelatedParts(relatedParts)}` : ''
+      ]);
+    }
+
     function buildStoredRecord(payload) {
       const record = {
         part_number_original: payload.part_number_original,
@@ -483,7 +564,7 @@
         description: payload.description || '',
         manufacturer: payload.manufacturer || '',
         ro_count: Number(payload.ro_count || 0),
-        notes: payload.notes || '',
+        notes: combineNotesAndRelated(payload.notes || '', payload.related_parts || ''),
         uploaded_by: payload.uploaded_by || null
       };
       if (state.hasVehicleColumn) {
@@ -505,7 +586,7 @@
 
     function renderPartsTable() {
       if (!state.filteredParts.length) {
-        el.partsTbody.innerHTML = '<tr><td colspan="8" class="muted">No parts found.</td></tr>';
+        el.partsTbody.innerHTML = '<tr><td colspan="9" class="muted">No parts found.</td></tr>';
         return;
       }
       el.partsTbody.innerHTML = state.filteredParts.map(part => `
@@ -518,6 +599,7 @@
           <td>${escapeHtml(formatDate(part.created_at))}</td>
           <td>${escapeHtml(formatDate(part.updated_at))}</td>
           <td>${escapeHtml(part.uploaded_by || '')}</td>
+          <td>${escapeHtml(part.notes || '')}</td>
         </tr>`).join('');
     }
 
@@ -545,7 +627,8 @@
           String(part.part_number_original || '').toLowerCase().includes(q) ||
           String(part.description || '').toLowerCase().includes(q) ||
           String(part.manufacturer || '').toLowerCase().includes(q) ||
-          String(normalizeVehicleDisplay(part) || '').toLowerCase().includes(q)
+          String(normalizeVehicleDisplay(part) || '').toLowerCase().includes(q) ||
+          String(part.notes || '').toLowerCase().includes(q)
         );
       }
 
@@ -719,9 +802,113 @@
       updateStats();
     }
 
-    function buildPayloadFromRow(row) {
+
+    function inferSourceProfile(fileName, rows) {
+      const name = String(fileName || '').toLowerCase();
+      const headers = rows?.length ? Object.keys(rows[0]).map(h => String(h).trim()) : [];
+      const headerSet = new Set(headers);
+
+      if (headerSet.has('ITEM_ID') && headerSet.has('ITEM_DESC')) {
+        return { type: 'paccar_price_tape', fileName: name };
+      }
+
+      if (headerSet.has('Part_Number') && headerSet.has('Part_Name') && headerSet.has('Vehicle Type')) {
+        return { type: 'freightliner_corcentric', fileName: name };
+      }
+
+      if (headerSet.has('PARTNUMBER') && headerSet.has('LINEDESC')) {
+        return { type: 'middle_mile', fileName: name };
+      }
+
+      return { type: 'generic', fileName: name };
+    }
+
+    function normalizeVehicleLabel(value) {
+      const v = String(value || '').trim();
+      if (!v) return '';
+      const upper = v.toUpperCase();
+      const map = {
+        FRGHT: 'Freightliner',
+        FREIGHTLINER: 'Freightliner',
+        PACCAR: 'Paccar',
+        KW: 'Kenworth',
+        KENWORTH: 'Kenworth',
+        PTRB: 'Peterbilt',
+        PETERBILT: 'Peterbilt',
+        VOLVO: 'Volvo'
+      };
+      return map[upper] || v;
+    }
+
+    function appendPricingToNotes(baseNotes, pieces) {
+      return appendNotePieces([baseNotes, ...pieces.filter(Boolean)]);
+    }
+
+    function buildPayloadFromRow(row, sourceProfile = { type: 'generic', fileName: '' }) {
+      if (sourceProfile.type === 'paccar_price_tape') {
+        const original = readRowValue(row, ['ITEM_ID']);
+        if (!original) return null;
+        const description = readRowValue(row, ['ITEM_DESC']);
+        const vehicle = normalizeVehicleLabel(readRowValue(row, ['FLTID'])) || 'Paccar';
+        const listPrice = readRowValue(row, ['LISTPRICE']);
+        const fleetPrice = readRowValue(row, ['PRICE']);
+        const vmrs = readRowValue(row, ['VMRS_ID']);
+        const core = readRowValue(row, ['CORE_IND']);
+        const itemClass = readRowValue(row, ['ITEM_CLS']);
+        return {
+          part_number_original: original,
+          part_number_normalized: normalizePartNumber(original),
+          description,
+          manufacturer: 'PACCAR',
+          vehicle,
+          ro_count: 0,
+          notes: appendPricingToNotes('', [
+            itemClass ? `Item Class: ${itemClass}` : '',
+            listPrice ? `List Price: ${listPrice}` : '',
+            fleetPrice ? `Price: ${fleetPrice}` : '',
+            core ? `Core: ${core}` : '',
+            vmrs ? `VMRS: ${vmrs}` : ''
+          ]),
+          uploaded_by: state.user?.id || null,
+          related_parts: ''
+        };
+      }
+
+      if (sourceProfile.type === 'freightliner_corcentric') {
+        const original = readRowValue(row, ['Part_Number']);
+        if (!original) return null;
+        const description = readRowValue(row, ['Part_Name']);
+        const vehicle = normalizeVehicleLabel(readRowValue(row, ['Vehicle Type'])) || 'Freightliner';
+        const unit = readRowValue(row, ['Unit_of_measure']);
+        const vmrs = readRowValue(row, ['VMRS_code']);
+        const core = readRowValue(row, ['core']);
+        const list2 = readRowValue(row, ['list2']);
+        const fleet2 = readRowValue(row, ['fleet2']);
+        const rflw2 = readRowValue(row, ['RFLW2']);
+        const partsCost = readRowValue(row, ['Parts Cost']);
+        return {
+          part_number_original: original,
+          part_number_normalized: normalizePartNumber(original),
+          description,
+          manufacturer: 'FREIGHTLINER',
+          vehicle,
+          ro_count: 0,
+          notes: appendPricingToNotes('', [
+            unit ? `UOM: ${unit}` : '',
+            vmrs ? `VMRS: ${vmrs}` : '',
+            core ? `Core: ${core}` : '',
+            list2 ? `List: ${list2}` : '',
+            fleet2 ? `Fleet: ${fleet2}` : '',
+            rflw2 ? `RFLW: ${rflw2}` : '',
+            partsCost ? `Parts Cost: ${partsCost}` : ''
+          ]),
+          uploaded_by: state.user?.id || null,
+          related_parts: ''
+        };
+      }
+    function buildPayloadFromRow(row, sourceProfile = { type: 'generic', fileName: '' }) {
       const original = readRowValue(row, [
-        'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER'
+        'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER', 'Part_Number', 'ITEM_ID'
       ]);
 
       if (!original) return null;
@@ -731,7 +918,7 @@
       ]);
 
       const description = readRowValue(row, [
-        'description', 'Description', 'DESC', 'desc', 'LINEDESC', 'LineDesc'
+        'description', 'Description', 'DESC', 'desc', 'LINEDESC', 'LineDesc', 'Part_Name', 'ITEM_DESC'
       ]);
 
       const roCountRaw = readRowValue(row, [
@@ -739,7 +926,7 @@
       ]);
 
       const vehicle = readRowValue(row, [
-        'vehicle', 'Vehicle', 'truck', 'Truck', 'model', 'Model', 'Model Concat', 'MODEL CONCAT', 'ModelConcat'
+        'vehicle', 'Vehicle', 'truck', 'Truck', 'model', 'Model', 'Model Concat', 'MODEL CONCAT', 'ModelConcat', 'Vehicle Type', 'FLTID'
       ]);
 
       const category = readRowValue(row, [
@@ -749,25 +936,40 @@
       const modelConcat = readRowValue(row, ['Model Concat', 'MODEL CONCAT', 'ModelConcat']);
       const lastUsedCost = readRowValue(row, ['Last Used Cost', 'LAST USED COST', 'LastUsedCost']);
       const lastUsedPartCharge = readRowValue(row, ['LastUsedPart_CHGAMT', 'LastUsedPart CHGAMT', 'LASTUSEDPART_CHGAMT']);
+      const listPrice = readRowValue(row, ['LISTPRICE', 'list2']);
+      const fleetPrice = readRowValue(row, ['PRICE', 'fleet2']);
+      const partsCost = readRowValue(row, ['Parts Cost']);
+      const vmrs = readRowValue(row, ['VMRS_ID', 'VMRS_code']);
+      const unitOfMeasure = readRowValue(row, ['UOM', 'Unit_of_measure']);
       const notesBase = readRowValue(row, ['notes', 'Notes']);
 
       const normalized = normalizePartNumber(original);
-      const finalVehicle = vehicle || modelConcat || '';
+      let finalManufacturer = manufacturer;
+      let finalVehicle = normalizeVehicleLabel(vehicle || modelConcat || '');
+
+      if (sourceProfile.type === 'middle_mile' && !finalManufacturer) finalManufacturer = 'UNKNOWN';
+      if (sourceProfile.type === 'paccar_price_tape' && !finalManufacturer) finalManufacturer = 'PACCAR';
+      if (sourceProfile.type === 'freightliner_corcentric' && !finalManufacturer) finalManufacturer = 'FREIGHTLINER';
 
       return {
         part_number_original: original,
         part_number_normalized: normalized,
         description,
-        manufacturer,
+        manufacturer: finalManufacturer,
         vehicle: finalVehicle,
         ro_count: Number(roCountRaw || 0),
-        notes: appendNotePieces([
-          notesBase,
+        notes: appendPricingToNotes(notesBase, [
           category ? `Category: ${category}` : '',
           lastUsedCost ? `Last Used Cost: ${lastUsedCost}` : '',
-          lastUsedPartCharge ? `Last Used Charge: ${lastUsedPartCharge}` : ''
+          lastUsedPartCharge ? `Last Used Charge: ${lastUsedPartCharge}` : '',
+          listPrice ? `List Price: ${listPrice}` : '',
+          fleetPrice ? `Price: ${fleetPrice}` : '',
+          partsCost ? `Parts Cost: ${partsCost}` : '',
+          unitOfMeasure ? `UOM: ${unitOfMeasure}` : '',
+          vmrs ? `VMRS: ${vmrs}` : ''
         ]),
-        uploaded_by: state.user?.id || null
+        uploaded_by: state.user?.id || null,
+        related_parts: ''
       };
     }
 
@@ -788,6 +990,7 @@
         const rows = await fileToRows(file);
         if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
 
+        const sourceProfile = inferSourceProfile(file.name, rows);
         state.review.rowsScanned = rows.length;
 
         const existing = await fetchAllParts('ro_count', false);
@@ -804,7 +1007,7 @@
 
         const batchSize = 500;
         for (let i = 0; i < rows.length; i++) {
-          const payload = buildPayloadFromRow(rows[i]);
+          const payload = buildPayloadFromRow(rows[i], sourceProfile);
           if (payload) {
             const exactKey = buildPartManufacturerKey(payload.part_number_original, payload.manufacturer);
             const normKey = buildNormalizedManufacturerKey(payload.part_number_normalized, payload.manufacturer);
@@ -851,11 +1054,16 @@
       const currentVehicle = normalizeVehicleDisplay(current);
       const uploadedVehicle = uploaded.vehicle || '';
 
+      const currentRelated = extractRelatedPartsFromNotes(current.notes);
+      const uploadedRelated = uploaded.related_parts || extractRelatedPartsFromNotes(uploaded.notes);
       const updatePayload = {
         ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
         description: current.description || uploaded.description || '',
         manufacturer: current.manufacturer || uploaded.manufacturer || '',
-        notes: appendNotePieces([current.notes, uploaded.notes, (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : '']),
+        notes: combineNotesAndRelated(
+          appendNotePieces([current.notes, uploaded.notes, (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : '']),
+          [currentRelated, uploadedRelated].filter(Boolean).join(', ')
+        ),
         uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
       };
 
@@ -921,6 +1129,100 @@
       renderReview();
     };
 
+    async function mergeAllItems(items, successMessage) {
+      const activeItems = items.filter(item => item && !item.skip);
+      if (!activeItems.length) {
+        showMessage(el.uploadMessage, 'Nothing to merge.', 'warning');
+        return;
+      }
+
+      try {
+        showMessage(el.uploadMessage, `Merging ${activeItems.length} items...`, 'warning');
+        for (let i = 0; i < activeItems.length; i++) {
+          const item = activeItems[i];
+          await mergeExisting(item.existing.id, item.uploaded);
+          item.skip = true;
+          if ((i + 1) % 25 === 0) {
+            showMessage(el.uploadMessage, `Merging ${i + 1} of ${activeItems.length} items...`, 'warning');
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, successMessage.replace('{count}', activeItems.length), 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Merge all error: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    async function mergeAllExact() {
+      await mergeAllItems(state.review.exactDuplicates, 'Merged {count} exact duplicates into existing parts.');
+    }
+
+    async function mergeAllPossible() {
+      await mergeAllItems(state.review.possibleDuplicates, 'Merged {count} possible duplicates into existing parts.');
+    }
+
+    function clearManualPartForm() {
+      el.manualPartNumber.value = '';
+      el.manualDescription.value = '';
+      el.manualManufacturer.value = '';
+      el.manualVehicle.value = '';
+      el.manualROCount.value = '';
+      el.manualRelatedParts.value = '';
+      el.manualNotes.value = '';
+    }
+
+    async function addManualPart() {
+      try {
+        showMessage(el.manualPartMessage, '', 'success');
+
+        const partNumber = el.manualPartNumber.value.trim();
+        const description = el.manualDescription.value.trim();
+        const manufacturer = el.manualManufacturer.value.trim();
+        const vehicle = el.manualVehicle.value.trim();
+        const roCount = Number(el.manualROCount.value || 0);
+        const relatedParts = cleanRelatedParts(el.manualRelatedParts.value);
+        const notes = el.manualNotes.value.trim();
+
+        if (!partNumber) return showMessage(el.manualPartMessage, 'Enter a part number.', 'warning');
+        if (!manufacturer) return showMessage(el.manualPartMessage, 'Enter a manufacturer.', 'warning');
+
+        const payload = {
+          part_number_original: partNumber,
+          part_number_normalized: normalizePartNumber(partNumber),
+          description,
+          manufacturer,
+          vehicle,
+          ro_count: roCount,
+          notes,
+          related_parts: relatedParts,
+          uploaded_by: state.user?.id || null
+        };
+
+        const existing = state.allParts.find(part =>
+          buildPartManufacturerKey(part.part_number_original, part.manufacturer) ===
+          buildPartManufacturerKey(payload.part_number_original, payload.manufacturer)
+        );
+
+        if (existing) {
+          await mergeExisting(existing.id, payload);
+          await loadParts();
+          clearManualPartForm();
+          return showMessage(el.manualPartMessage, 'Matching part + manufacturer already existed, so it was merged and the notes were kept.', 'success');
+        }
+
+        const { error } = await state.supabase.from('parts').insert([buildStoredRecord(payload)]);
+        if (error) throw error;
+
+        await loadParts();
+        clearManualPartForm();
+        showMessage(el.manualPartMessage, 'Part added.', 'success');
+      } catch (err) {
+        showMessage(el.manualPartMessage, `Add part failed: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
     async function importApproved() {
       try {
         const payload = state.review.newParts
@@ -948,11 +1250,12 @@
     }
 
     function downloadCsv(filename, rows) {
-      const headers = ['part_number_original', 'description', 'manufacturer', 'vehicle', 'ro_count', 'created_at', 'updated_at', 'uploaded_by', 'notes'];
+      const headers = ['part_number_original', 'description', 'manufacturer', 'vehicle', 'ro_count', 'created_at', 'updated_at', 'uploaded_by', 'notes', 'related_parts'];
       const csv = [headers.join(',')].concat(rows.map(row => {
         const exportRow = {
           ...row,
-          vehicle: normalizeVehicleDisplay(row)
+          vehicle: normalizeVehicleDisplay(row),
+          related_parts: extractRelatedPartsFromNotes(row.notes)
         };
         return headers.map(key => `"${String(exportRow[key] ?? '').replace(/"/g, '""')}"`).join(',');
       })).join('\n');
@@ -1082,6 +1385,10 @@
           }
         });
         el.scanUploadBtn.addEventListener('click', scanUpload);
+        el.addManualPartBtn.addEventListener('click', addManualPart);
+        el.clearManualPartBtn.addEventListener('click', clearManualPartForm);
+        el.mergeAllExactBtn.addEventListener('click', mergeAllExact);
+        el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
         el.searchInput.addEventListener('input', applyFilters);
         el.vehicleFilter.addEventListener('change', applyFilters);
