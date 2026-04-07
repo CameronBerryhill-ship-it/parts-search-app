@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <title>Internal Parts Search – Shared Auth Version</title>
-  
+  <meta name="theme-color" content="#08111f" />
+  <title>Internal Parts Search – Shared Top Parts Version</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root{
       --bg:#08111f; --bg2:#0f172a; --panel:#111827; --line:#2b3a53;
@@ -30,7 +30,7 @@
     .sub{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.45}
     .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
     .pill{padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(56,189,248,.1);color:#bae6fd;border:1px solid rgba(56,189,248,.22)}
-    .layout{display:grid;grid-template-columns:1.25fr .75fr;gap:14px}
+    .layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
     @media (max-width:1100px){.layout{grid-template-columns:1fr}}
     .section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
     .section-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
@@ -63,7 +63,10 @@
     .tab{width:auto;padding:10px 12px}
     .tab.active{outline:2px solid rgba(14,165,233,.28);border-color:var(--accent2)}
     .parts{display:grid;gap:12px}
-    .part-card{background:#0b1220;border:1px solid #223047;border-radius:16px;padding:12px}
+    .top-parts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    @media (max-width:980px){.top-parts{grid-template-columns:1fr 1fr}}
+    @media (max-width:620px){.top-parts{grid-template-columns:1fr}}
+    .part-card,.top-card{background:#0b1220;border:1px solid #223047;border-radius:16px;padding:12px}
     .part-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
     .part-title{font-size:17px;font-weight:800;line-height:1.2}
     .part-sub{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.35}
@@ -75,12 +78,12 @@
     .detail{background:rgba(255,255,255,.02);border:1px solid rgba(148,163,184,.10);border-radius:12px;padding:9px 10px}
     .k{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.35px;margin-bottom:4px}
     .v{font-size:14px;line-height:1.35;word-break:break-word}
-    .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+    .actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
     @media (max-width:760px){.actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .hint,.status-box{margin-top:12px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;background:rgba(245,158,11,.08);color:#fde68a;border:1px solid rgba(245,158,11,.18)}
     .status-box.ok{background:rgba(34,197,94,.08); color:#bbf7d0; border-color:rgba(34,197,94,.18)}
     .status-box.info{background:rgba(56,189,248,.08); color:#bae6fd; border-color:rgba(56,189,248,.18)}
-    .toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+    .toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
     @media (max-width:700px){.toolbar{grid-template-columns:1fr 1fr}}
     .empty{text-align:center;color:var(--muted);padding:24px 10px}
     .admin-panel{display:none}
@@ -101,7 +104,7 @@
     <div class="topbar-inner">
       <div class="brand">
         <strong>Internal Parts Search</strong>
-        <span>Shared auth version • APP + Tomy</span>
+        <span>Shared top parts version • APP + Tomy</span>
       </div>
       <div class="top-actions">
         <button class="btn-muted" id="advisorModeBtn" type="button">Advisor Mode</button>
@@ -115,7 +118,7 @@
   <div class="app">
     <div class="hero">
       <h1>Advisor Shared Parts Search</h1>
-      <div class="sub">Same style, but now set up for shared search and admin login. Advisors can search. Approved admins can sign in and update the shared catalog.</div>
+      <div class="sub">Search-first shared parts reference. Top used parts are driven by RO count from your parts file, highest to lowest. Admins can upload parts lists in JSON or CSV.</div>
       <div class="pill-row">
         <span class="pill">APP: Volvo, Freightliner, Peterbuilt, Kenworth, Autocar, Bytec, International</span>
         <span class="pill">Tomy Trailer: Hyundai, Great Dane, Wabash, Dimitr, Stght, Vanguard, Corbl</span>
@@ -137,7 +140,7 @@
           <button type="button" class="btn-muted tab active" data-tab="all">All</button>
           <button type="button" class="btn-muted tab" data-tab="APP">APP</button>
           <button type="button" class="btn-muted tab" data-tab="Tomy Trailer">Tomy Trailer</button>
-          <button type="button" class="btn-muted tab" data-tab="needs">Needs Stock</button>
+          <button type="button" class="btn-muted tab" data-tab="top">Top Used</button>
         </div>
 
         <div class="quick-actions">
@@ -176,12 +179,12 @@
           <div>
             <label for="sortBy">Sort By</label>
             <select id="sortBy">
+              <option value="roDesc">Most Used</option>
               <option value="updated">Recently Updated</option>
               <option value="number">Part Number</option>
               <option value="name">Description</option>
               <option value="brand">Brand</option>
               <option value="costDesc">Highest Price</option>
-              <option value="roDesc">Most Used</option>
             </select>
           </div>
           <div>
@@ -199,8 +202,8 @@
       <div class="card">
         <div class="section-head">
           <div>
-            <h2>Shared Dashboard</h2>
-            <p>Search for everyone, edit for admins.</p>
+            <h2>Reference Dashboard</h2>
+            <p>Parts reference, not inventory.</p>
           </div>
         </div>
 
@@ -208,20 +211,32 @@
           <div class="stat"><div class="num" id="totalParts">0</div><div class="lbl">Total Parts</div></div>
           <div class="stat"><div class="num" id="appCount">0</div><div class="lbl">APP</div></div>
           <div class="stat"><div class="num" id="trailerCount">0</div><div class="lbl">Tomy Trailer</div></div>
-          <div class="stat"><div class="num" id="lowCount">0</div><div class="lbl">Low / Out</div></div>
+          <div class="stat"><div class="num" id="topRoCount">0</div><div class="lbl">Highest RO Count</div></div>
           <div class="stat"><div class="num" id="brandCount">0</div><div class="lbl">Brands Used</div></div>
         </div>
 
         <div class="toolbar">
           <button type="button" class="btn-secondary" id="exportJsonBtn">Export JSON</button>
           <button type="button" class="btn-secondary" id="exportCsvBtn">Export CSV</button>
-          <button type="button" class="btn-muted" id="sampleBtn">Load Sample</button>
+          <button type="button" class="btn-muted" id="loadSampleBtn">Load Sample</button>
+          <button type="button" class="btn-muted" id="loadTopSeedBtn">Load Top Parts Seed</button>
         </div>
 
         <div class="hint">
-          Use Shared Setup once, then all advisors use the same URL. Admins sign in with approved emails to edit.
+          Upload parts lists from JSON or CSV in Admin Mode. Imports merge by part number and keep the highest RO count.
         </div>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="section-head">
+        <div>
+          <h2>Top Used Parts</h2>
+          <p>Highest to lowest by RO count.</p>
+        </div>
+      </div>
+      <div id="topPartsList" class="top-parts"></div>
+      <div id="topEmpty" class="empty" style="display:none">No top parts yet.</div>
     </div>
 
     <div class="card admin-panel" id="adminPanel" style="margin-top:14px;">
@@ -247,7 +262,7 @@
           <div><label for="crossRef">Cross Reference</label><input id="crossRef" placeholder="Alternate number" /></div>
           <div><label for="fits">Fits / Application</label><input id="fits" placeholder="Model, trailer type, verify by VIN..." /></div>
           <div><label for="keywords">Keywords</label><input id="keywords" placeholder="hub cap, wheel seal, 7-way..." /></div>
-          <div><label for="location">Location / Bin</label><input id="location" placeholder="Shelf A1 / Trailer Bin 4" /></div>
+          <div><label for="location">Location / Bin</label><input id="location" placeholder="Optional reference only" /></div>
           <div><label for="photoInput">Part Photos</label><input id="photoInput" type="file" accept="image/*" multiple /></div>
         </div>
 
@@ -262,9 +277,9 @@
           <button type="submit" class="btn-primary" id="saveBtn">Add Part</button>
           <button type="button" class="btn-secondary" id="updateBtn" style="display:none;">Update Part</button>
           <button type="button" class="btn-muted" id="clearBtn">Clear Form</button>
-          <button type="button" class="btn-muted" id="importBtn">Import JSON</button>
+          <button type="button" class="btn-muted" id="importBtn">Upload Parts List</button>
         </div>
-        <input id="importFile" type="file" accept=".json" style="display:none" />
+        <input id="importFile" type="file" accept=".json,.csv" style="display:none" />
       </form>
     </div>
 
@@ -272,7 +287,7 @@
       <div class="section-head">
         <div>
           <h2>Parts Results</h2>
-          <p>Tap copy buttons for fast lookup use.</p>
+          <p>Sorted by RO count highest to lowest by default.</p>
         </div>
       </div>
       <div id="partsList" class="parts"></div>
@@ -285,10 +300,10 @@
       <div class="section-head"><div><h2>Shared Setup</h2><p>Paste your shared Supabase project info here.</p></div></div>
       <div class="config-grid">
         <div><label for="supabaseUrl">Supabase URL</label><input id="supabaseUrl" placeholder="https://YOURPROJECT.supabase.co" /></div>
-        <div><label for="supabaseAnonKey">Supabase Anon Key</label><input id="supabaseAnonKey" placeholder="Paste anon public key" /></div>
+        <div><label for="supabaseAnonKey">Supabase Publishable Key</label><input id="supabaseAnonKey" placeholder="Paste publishable key" /></div>
         <div><label for="tableName">Table Name</label><input id="tableName" value="parts_catalog" /></div>
       </div>
-      <div class="small" style="margin-top:8px">This saves locally in this app on this device. Everyone using the same URL should paste the same project details one time.</div>
+      <div class="small" style="margin-top:8px">This saves locally in this app on this device.</div>
       <div class="toolbar">
         <button class="btn-primary" id="saveSettingsBtn" type="button">Save & Connect</button>
         <button class="btn-muted" id="closeSettingsBtn" type="button">Close</button>
@@ -310,15 +325,15 @@
         <button class="btn-muted" id="signOutBtn" type="button">Sign Out</button>
         <button class="btn-muted" id="closeAuthBtn" type="button">Close</button>
       </div>
-      <div class="small" style="margin-top:8px">Admins need to exist in Supabase Auth and also be added to the admin_allowlist table from the SQL setup.</div>
+      <div class="small" style="margin-top:8px">Admins need to exist in Supabase Auth and be in admin_allowlist.</div>
     </div>
   </div>
 
-  <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-    const SETTINGS_KEY = "advisor_shared_parts_search_settings_auth_v1";
-    const LOCAL_FALLBACK_KEY = "advisor_shared_parts_local_fallback_auth_v1";
+  <script>
+    const SETTINGS_KEY = "advisor_shared_parts_search_top_parts_v1";
+    const LOCAL_FALLBACK_KEY = "advisor_shared_parts_local_top_parts_v1";
+    const DEFAULT_SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
+    const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
     const brands = {
       "APP": ["Volvo","Freightliner","Peterbuilt","Kenworth","Autocar","Bytec","International"],
       "Tomy Trailer": ["Hyundai","Great Dane","Wabash","Dimitr","Stght","Vanguard","Corbl"]
@@ -330,15 +345,13 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     let pendingPhotos = [];
     let supabase = null;
     let settings = loadSettings();
-    const DEFAULT_SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
-    const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
-    if(!settings.supabaseUrl) settings.supabaseUrl = DEFAULT_SUPABASE_URL;
-    if(!settings.supabaseAnonKey) settings.supabaseAnonKey = DEFAULT_SUPABASE_ANON_KEY;
-    if(!settings.tableName) settings.tableName = "parts_catalog";
-    
     let currentUser = null;
     let isAdmin = false;
     let realtimeSubscribed = false;
+
+    if(!settings.supabaseUrl) settings.supabaseUrl = DEFAULT_SUPABASE_URL;
+    if(!settings.supabaseAnonKey) settings.supabaseAnonKey = DEFAULT_SUPABASE_ANON_KEY;
+    if(!settings.tableName) settings.tableName = "parts_catalog";
 
     const $ = id => document.getElementById(id);
 
@@ -352,16 +365,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     function saveLocalFallback(){ localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(parts)); }
     function loadLocalFallback(){ try{ const raw = localStorage.getItem(LOCAL_FALLBACK_KEY); if(raw){ const parsed = JSON.parse(raw); if(Array.isArray(parsed)) parts = parsed; } }catch(e){} }
 
-    function setConnectionStatus(text, type="info"){
-      const el = $("connectionStatus");
-      el.textContent = text;
-      el.className = "status-box " + type;
-    }
-    function setAuthStatus(text, type="info"){
-      const el = $("authStatus");
-      el.textContent = text;
-      el.className = "status-box " + type;
-    }
+    function setConnectionStatus(text, type="info"){ const el = $("connectionStatus"); el.textContent = text; el.className = "status-box " + type; }
+    function setAuthStatus(text, type="info"){ const el = $("authStatus"); el.textContent = text; el.className = "status-box " + type; }
 
     function setAdminUI(){
       $("adminPanel").classList.toggle("show", isAdmin);
@@ -371,11 +376,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       render();
     }
 
-    function populateSettingsForm(){
-      $("supabaseUrl").value = settings.supabaseUrl || "";
-      $("supabaseAnonKey").value = settings.supabaseAnonKey || "";
-      $("tableName").value = settings.tableName || "parts_catalog";
-    }
+    function populateSettingsForm(){ $("supabaseUrl").value = settings.supabaseUrl || ""; $("supabaseAnonKey").value = settings.supabaseAnonKey || ""; $("tableName").value = settings.tableName || "parts_catalog"; }
 
     function updateBrandOptions(){
       const group = $("group").value;
@@ -386,28 +387,18 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       $("filterBrand").innerHTML = `<option value="">All Brands</option>` + all.map(b => `<option value="${b}">${b}</option>`).join("");
     }
 
-    function showCopyStatus(msg){
-      $("copyStatus").textContent = msg;
-      setTimeout(() => { if($("copyStatus").textContent === msg) $("copyStatus").textContent = ""; }, 1800);
-    }
+    function showCopyStatus(msg){ $("copyStatus").textContent = msg; setTimeout(() => { if($("copyStatus").textContent === msg) $("copyStatus").textContent = ""; }, 1800); }
 
     async function copyText(text, msg){
-      try{
-        await navigator.clipboard.writeText(text);
-      }catch(err){
+      try{ await navigator.clipboard.writeText(text); }
+      catch(err){
         const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
+        ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
       }
       showCopyStatus(msg);
     }
 
-    function refreshPhotoPreview(){
-      $("photoPreview").innerHTML = pendingPhotos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join("");
-    }
+    function refreshPhotoPreview(){ $("photoPreview").innerHTML = pendingPhotos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join(""); }
 
     function readFilesAsDataURLs(files){
       return Promise.all([...files].map(file => new Promise((resolve,reject)=>{
@@ -418,21 +409,34 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       })));
     }
 
+    function normalizeGroup(raw){
+      const txt = String(raw.group || raw.section || raw.program || "").trim().toLowerCase();
+      if(txt.includes("tomy") || txt.includes("trailer")) return "Tomy Trailer";
+      return "APP";
+    }
+
+    function normalizeBrand(raw){
+      const val = String(raw.brand || raw.make || raw.manufacturer || "").trim();
+      if(!val) return "";
+      return val;
+    }
+
     function normalizePart(raw){
-      const partNumber = String(raw.partNumber || raw.PARTNUMBER || raw.part_number || "").trim();
+      const partNumber = String(raw.partNumber || raw.PARTNUMBER || raw.part_number || raw.part || "").trim();
       if(!partNumber) return null;
+
       return {
         id: raw.id || uid(),
-        group: String(raw.group || raw.section || "APP").trim(),
-        brand: String(raw.brand || raw.make || "Freightliner").trim(),
+        group: normalizeGroup(raw),
+        brand: normalizeBrand(raw) || (normalizeGroup(raw) === "Tomy Trailer" ? "Hyundai" : "Freightliner"),
         status: raw.status || "In Stock",
         partNumber,
-        partName: String(raw.partName || raw.description || raw.DESCRIPTION || "").trim() || partNumber,
+        partName: String(raw.partName || raw.description || raw.DESCRIPTION || raw.part_name || "").trim() || partNumber,
         category: raw.category || "",
-        cost: Number(raw.cost ?? raw.price ?? raw.avgCost ?? 0) || 0,
-        avgCharge: Number(raw.avgCharge ?? raw.averageCharge ?? 0) || 0,
-        roCount: Number(raw.roCount ?? raw.usageCount ?? raw.count ?? 0) || 0,
-        vendor: raw.vendor || "",
+        cost: Number(raw.cost ?? raw.price ?? raw.avgCost ?? raw.average_cost ?? 0) || 0,
+        avgCharge: Number(raw.avgCharge ?? raw.averageCharge ?? raw.charge ?? 0) || 0,
+        roCount: Number(raw.roCount ?? raw.ROCOUNT ?? raw.usageCount ?? raw.count ?? 0) || 0,
+        vendor: raw.vendor || raw.supplier || "",
         crossRef: raw.crossRef || raw.cross_reference || "",
         fits: raw.fits || raw.application || "",
         keywords: raw.keywords || "",
@@ -454,10 +458,12 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
           const e = map.get(key);
           map.set(key, {
             ...e,
+            group: e.group || p.group,
+            brand: e.brand || p.brand,
             partName: e.partName || p.partName,
             category: e.category || p.category,
             cost: e.cost || p.cost,
-            avgCharge: e.avgCharge || p.avgCharge,
+            avgCharge: Math.max(Number(e.avgCharge||0), Number(p.avgCharge||0)),
             roCount: Math.max(Number(e.roCount||0), Number(p.roCount||0)),
             vendor: e.vendor || p.vendor,
             crossRef: e.crossRef || p.crossRef,
@@ -471,6 +477,37 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
         }
       }
       return [...map.values()];
+    }
+
+    async function parseCSV(file){
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(line => line.trim());
+      if(lines.length < 2) return [];
+      const rows = [];
+      let headers = [];
+      let current = '';
+      let parsed = [];
+      function parseLine(line){
+        const out=[]; let cell=''; let inQuotes=false;
+        for(let i=0;i<line.length;i++){
+          const ch=line[i], next=line[i+1];
+          if(ch === '"' && inQuotes && next === '"'){ cell += '"'; i++; continue; }
+          if(ch === '"'){ inQuotes = !inQuotes; continue; }
+          if(ch === ',' && !inQuotes){ out.push(cell); cell=''; continue; }
+          cell += ch;
+        }
+        out.push(cell);
+        return out.map(v => v.trim());
+      }
+      headers = parseLine(lines[0]).map(h => h.trim());
+      for(let i=1;i<lines.length;i++){
+        parsed = parseLine(lines[i]);
+        if(parsed.every(v => !v)) continue;
+        const row = {};
+        headers.forEach((h, idx) => row[h] = parsed[idx] ?? "");
+        rows.push(row);
+      }
+      return rows;
     }
 
     function clearForm(){
@@ -510,23 +547,13 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     }
 
     function validatePart(part){
-      if(!part.group || !part.brand || !part.partNumber || !part.partName){
-        alert("Please fill in section, brand, part number, and description.");
-        return false;
-      }
+      if(!part.group || !part.brand || !part.partNumber || !part.partName){ alert("Please fill in section, brand, part number, and description."); return false; }
       return true;
     }
 
     async function connectSupabase(){
-      if(!settings.supabaseUrl || !settings.supabaseAnonKey){
-        setConnectionStatus("Not connected yet. Open Shared Setup and add your Supabase project info.", "info");
-        supabase = null;
-        loadLocalFallback();
-        render();
-        return;
-      }
       try{
-        supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+        supabase = window.supabase.createClient(settings.supabaseUrl, settings.supabaseAnonKey);
         await refreshAuthState();
         await loadFromRemote();
         subscribeRealtime();
@@ -541,13 +568,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     }
 
     async function refreshAuthState(){
-      if(!supabase){
-        currentUser = null;
-        isAdmin = false;
-        setAuthStatus("Admin not signed in.", "info");
-        setAdminUI();
-        return;
-      }
+      if(!supabase){ currentUser = null; isAdmin = false; setAuthStatus("Admin not signed in.", "info"); setAdminUI(); return; }
       const { data: { session } } = await supabase.auth.getSession();
       currentUser = session?.user || null;
       isAdmin = false;
@@ -555,19 +576,14 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
         const { data, error } = await supabase.from("admin_allowlist").select("email").eq("email", currentUser.email).maybeSingle();
         if(!error && data) isAdmin = true;
       }
-      setAuthStatus(
-        currentUser
-          ? (isAdmin ? `Signed in as approved admin: ${currentUser.email}` : `Signed in, but not on admin allowlist: ${currentUser.email}`)
-          : "Admin not signed in.",
-        currentUser ? (isAdmin ? "ok" : "info") : "info"
-      );
+      setAuthStatus(currentUser ? (isAdmin ? `Signed in as approved admin: ${currentUser.email}` : `Signed in, but not on admin allowlist: ${currentUser.email}`) : "Admin not signed in.", currentUser ? (isAdmin ? "ok" : "info") : "info");
       setAdminUI();
     }
 
     async function loadFromRemote(){
       if(!supabase) return;
       const tableName = settings.tableName || "parts_catalog";
-      const { data, error } = await supabase.from(tableName).select("*").order("updatedAt", { ascending: false });
+      const { data, error } = await supabase.from(tableName).select("*").order("roCount", { ascending: false });
       if(error) throw error;
       parts = dedupeParts(data || []);
       render();
@@ -584,45 +600,21 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
     async function savePartRemote(part){
       const tableName = settings.tableName || "parts_catalog";
-      if(!supabase){
-        parts = dedupeParts([...parts, part]);
-        saveLocalFallback();
-        render();
-        return;
-      }
-      if(!isAdmin){
-        alert("You must be signed in as an approved admin to edit the shared catalog.");
-        return;
-      }
+      if(!supabase){ parts = dedupeParts([...parts, part]); saveLocalFallback(); render(); return; }
+      if(!isAdmin){ alert("You must be signed in as an approved admin to edit the shared catalog."); return; }
       const existing = parts.find(p => p.partNumber.toUpperCase() === part.partNumber.toUpperCase());
       if(existing && existing.id !== part.id) part.id = existing.id;
       const { error } = await supabase.from(tableName).upsert([part], { onConflict: "partNumber" });
-      if(error){
-        console.error(error);
-        alert("Could not save to shared database.");
-        return;
-      }
+      if(error){ console.error(error); alert("Could not save to shared database."); return; }
       await loadFromRemote();
     }
 
     async function deletePartRemote(id){
       const tableName = settings.tableName || "parts_catalog";
-      if(!supabase){
-        parts = parts.filter(p => p.id !== id);
-        saveLocalFallback();
-        render();
-        return;
-      }
-      if(!isAdmin){
-        alert("You must be signed in as an approved admin to delete from the shared catalog.");
-        return;
-      }
+      if(!supabase){ parts = parts.filter(p => p.id !== id); saveLocalFallback(); render(); return; }
+      if(!isAdmin){ alert("You must be signed in as an approved admin to delete from the shared catalog."); return; }
       const { error } = await supabase.from(tableName).delete().eq("id", id);
-      if(error){
-        console.error(error);
-        alert("Could not delete part from shared database.");
-        return;
-      }
+      if(error){ console.error(error); alert("Could not delete part from shared database."); return; }
       await loadFromRemote();
     }
 
@@ -634,12 +626,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       const photoOnly = $("photoOnly").value;
 
       let data = parts.filter(p => {
-        const hay = [
-          p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.cost,p.avgCharge,p.roCount,p.vendor,p.crossRef,
-          p.fits,p.keywords,p.location,p.notes
-        ].join(" ").toLowerCase();
-
-        const tabMatch = currentTab === "all" || (currentTab === "needs" ? (p.status === "Low Stock" || p.status === "Out of Stock") : p.group === currentTab);
+        const hay = [p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.cost,p.avgCharge,p.roCount,p.vendor,p.crossRef,p.fits,p.keywords,p.location,p.notes].join(" ").toLowerCase();
+        const tabMatch = currentTab === "all" || (currentTab === "top" ? Number(p.roCount||0) > 0 : p.group === currentTab);
         return tabMatch
           && (!q || hay.includes(q))
           && (!brand || p.brand === brand)
@@ -654,8 +642,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
         if(sortBy === "name") return (a.partName||"").localeCompare(b.partName||"");
         if(sortBy === "brand") return (a.brand||"").localeCompare(b.brand||"");
         if(sortBy === "costDesc") return Number(b.cost||0) - Number(a.cost||0);
-        if(sortBy === "roDesc") return Number(b.roCount||0) - Number(a.roCount||0);
-        return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+        if(sortBy === "updated") return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+        return Number(b.roCount||0) - Number(a.roCount||0);
       });
       return data;
     }
@@ -664,12 +652,38 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       $("totalParts").textContent = parts.length;
       $("appCount").textContent = parts.filter(p => p.group === "APP").length;
       $("trailerCount").textContent = parts.filter(p => p.group === "Tomy Trailer").length;
-      $("lowCount").textContent = parts.filter(p => p.status === "Low Stock" || p.status === "Out of Stock").length;
+      $("topRoCount").textContent = Math.max(0, ...parts.map(p => Number(p.roCount||0)));
       $("brandCount").textContent = new Set(parts.map(p => p.brand).filter(Boolean)).size;
+    }
+
+    function renderTopParts(){
+      const data = [...parts].sort((a,b)=>Number(b.roCount||0)-Number(a.roCount||0)).slice(0,12);
+      const list = $("topPartsList");
+      if(!data.length){
+        list.innerHTML = "";
+        $("topEmpty").style.display = "block";
+        return;
+      }
+      $("topEmpty").style.display = "none";
+      list.innerHTML = data.map(p => `
+        <div class="top-card">
+          <div class="part-title">${safe(p.partName || "")}</div>
+          <div class="part-sub"><strong>${safe(p.partNumber || "")}</strong> • ${safe(p.brand || "")}</div>
+          <div class="detail-grid">
+            <div class="detail"><div class="k">RO Count</div><div class="v">${safe(String(p.roCount || 0))}</div></div>
+            <div class="detail"><div class="k">Price</div><div class="v">${money(p.cost)}</div></div>
+          </div>
+          <div class="actions">
+            <button class="btn-secondary" onclick="copyField('${p.id}','partNumber','Part number copied.')">Copy P/N</button>
+            <button class="btn-muted" onclick="copyField('${p.id}','partName','Description copied.')">Copy Desc</button>
+          </div>
+        </div>
+      `).join("");
     }
 
     function render(){
       renderStats();
+      renderTopParts();
       document.querySelectorAll(".tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === currentTab));
       const data = filteredParts();
       const list = $("partsList");
@@ -690,22 +704,20 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
             <div><span class="tag ${statusClass(p.status)}">${safe(p.status || "—")}</span></div>
           </div>
           <div class="detail-grid">
-            <div class="detail"><div class="k">Category</div><div class="v">${safe(p.category || "—")}</div></div>
+            <div class="detail"><div class="k">RO Count</div><div class="v">${safe(String(p.roCount ?? 0))}</div></div>
             <div class="detail"><div class="k">Price / Cost</div><div class="v">${money(p.cost)}</div></div>
             <div class="detail"><div class="k">Average Charge</div><div class="v">${money(p.avgCharge)}</div></div>
-            <div class="detail"><div class="k">RO Count</div><div class="v">${safe(String(p.roCount ?? 0))}</div></div>
             <div class="detail"><div class="k">Vendor</div><div class="v">${safe(p.vendor || "—")}</div></div>
             <div class="detail"><div class="k">Cross Ref</div><div class="v">${safe(p.crossRef || "—")}</div></div>
             <div class="detail"><div class="k">Fits / Application</div><div class="v">${safe(p.fits || "—")}</div></div>
             <div class="detail"><div class="k">Keywords</div><div class="v">${safe(p.keywords || "—")}</div></div>
-            <div class="detail"><div class="k">Location</div><div class="v">${safe(p.location || "—")}</div></div>
             <div class="detail"><div class="k">Notes</div><div class="v">${safe(p.notes || "—")}</div></div>
           </div>
           ${(Array.isArray(p.photos) && p.photos.length) ? `<div class="thumb-row">${p.photos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join("")}</div>` : ""}
           <div class="actions">
             <button class="btn-secondary" onclick="copyField('${p.id}','partNumber','Part number copied.')">Copy P/N</button>
             <button class="btn-muted" onclick="copyField('${p.id}','partName','Description copied.')">Copy Desc</button>
-            <button class="btn-muted" onclick="copyField('${p.id}','crossRef','Cross reference copied.')">Copy Cross Ref</button>
+            <button class="btn-muted" onclick="copyResultLine('${p.id}')">Copy Line</button>
             ${isAdmin ? `<button class="btn-muted" onclick="editPart('${p.id}')">Edit</button><button class="btn-danger" onclick="deletePart('${p.id}')">Delete</button>` : ``}
           </div>
         </div>
@@ -718,15 +730,22 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       copyText(String(p[field] || ""), msg);
     }
 
+    window.copyResultLine = function(id){
+      const p = parts.find(x => x.id === id);
+      if(!p) return;
+      const line = `${p.partNumber} - ${p.partName} - ${money(p.cost)}`;
+      copyText(line, "Part line copied.");
+    }
+
     function exportJson(){
       const blob = new Blob([JSON.stringify(parts, null, 2)], {type:"application/json"});
-      download(blob, "advisor-shared-parts-search-auth.json");
+      download(blob, "shared-parts-search-top-parts.json");
     }
     function exportCsv(){
       const headers = ["Section","Brand","Status","Part Number","Description","Category","Price","Average Charge","RO Count","Vendor","Cross Ref","Fits","Keywords","Location","Notes","Updated At"];
       const rows = parts.map(p => [p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.cost,p.avgCharge,p.roCount,p.vendor,p.crossRef,p.fits,p.keywords,p.location,p.notes,p.updatedAt]);
       const csv = [headers, ...rows].map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\n");
-      download(new Blob([csv], {type:"text/csv;charset=utf-8;"}), "advisor-shared-parts-search-auth.csv");
+      download(new Blob([csv], {type:"text/csv;charset=utf-8;"}), "shared-parts-search-top-parts.csv");
     }
     function download(blob, name){
       const url = URL.createObjectURL(blob);
@@ -768,54 +787,56 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     }
     window.deletePart = deletePart;
 
-    function importJson(file){
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try{
-          const parsed = JSON.parse(e.target.result);
-          const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.parts) ? parsed.parts : [];
-          if(!arr.length) throw new Error("No parts array found.");
-          const deduped = dedupeParts(arr);
-          if(!supabase){
-            parts = dedupeParts([...parts, ...deduped]);
-            saveLocalFallback();
-            render();
-            alert("Imported into local fallback data.");
-            return;
-          }
-          if(!isAdmin){
-            alert("You must be signed in as an approved admin to import into the shared catalog.");
-            return;
-          }
-          const tableName = settings.tableName || "parts_catalog";
-          const { error } = await supabase.from(tableName).upsert(deduped, { onConflict: "partNumber" });
-          if(error) throw error;
-          await loadFromRemote();
-          alert("Import complete.");
-        }catch(err){
-          console.error(err);
-          alert("Import failed. Use a flat JSON array or an object with a parts array.");
+    async function importAnyFile(file){
+      if(!file) return;
+      try{
+        let arr = [];
+        if(file.name.toLowerCase().endsWith(".json")){
+          const parsed = JSON.parse(await file.text());
+          arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.parts) ? parsed.parts : [];
+        } else if(file.name.toLowerCase().endsWith(".csv")){
+          arr = await parseCSV(file);
+        } else {
+          throw new Error("Unsupported file type.");
         }
-      };
-      reader.readAsText(file);
+        if(!arr.length) throw new Error("No parts found in file.");
+        const deduped = dedupeParts(arr);
+        if(!supabase){
+          parts = dedupeParts([...parts, ...deduped]); saveLocalFallback(); render(); alert("Imported into local fallback data."); return;
+        }
+        if(!isAdmin){ alert("You must be signed in as an approved admin to import into the shared catalog."); return; }
+        const { error } = await supabase.from(settings.tableName || "parts_catalog").upsert(deduped, { onConflict: "partNumber" });
+        if(error) throw error;
+        await loadFromRemote();
+        alert(`Import complete. Added or updated ${deduped.length} parts.`);
+      } catch(err){
+        console.error(err);
+        alert("Import failed. Use JSON or CSV parts lists.");
+      }
     }
 
-    async function loadSample(){
-      const now = new Date().toISOString();
-      const sample = [
-        {id:uid(),group:"APP",brand:"Freightliner",status:"In Stock",partNumber:"16-724",partName:"7-Way Receptacle",category:"Electrical",cost:28.5,avgCharge:49.99,roCount:12,vendor:"Dealer",crossRef:"",fits:"M2 / trailer connection",keywords:"7-way receptacle trailer plug electrical",location:"APP Shelf A1",notes:"Common trailer connection part.",photos:[],updatedAt:now},
-        {id:uid(),group:"APP",brand:"Volvo",status:"On Order",partNumber:"VOL-WS-102",partName:"Wiper Linkage",category:"Body",cost:149.99,avgCharge:215.00,roCount:4,vendor:"Volvo Dealer",crossRef:"",fits:"VNL verify by VIN",keywords:"wiper linkage windshield",location:"APP Shelf B2",notes:"Verify by VIN.",photos:[],updatedAt:now},
-        {id:uid(),group:"Tomy Trailer",brand:"Hyundai",status:"In Stock",partNumber:"HYU2300DA34-X07",partName:"Corner Protector",category:"Body",cost:67.25,avgCharge:112.00,roCount:6,vendor:"Trailer Supplier",crossRef:"",fits:"Dry van rear corner",keywords:"corner protector rear corner repair",location:"Trailer Rack C3",notes:"Rear corner repair.",photos:[],updatedAt:now},
-        {id:uid(),group:"Tomy Trailer",brand:"Wabash",status:"Low Stock",partNumber:"31317-04",partName:"True Tee Fitting",category:"ATIS",cost:11.75,avgCharge:32.00,roCount:8,vendor:"FleetPride",crossRef:"",fits:"ATIS trailers",keywords:"true tee fitting atis",location:"Trailer Bin 4",notes:"Keep extras in stock.",photos:[],updatedAt:now}
-      ];
+    async function loadTopSeed(){
+      const res = await fetch('./parts-list-rocount-sorted.json');
+      if(!res.ok){ alert("Top parts seed file not found next to app."); return; }
+      const arr = await res.json();
+      await importArrayDirect(arr);
+    }
+
+    async function importArrayDirect(arr){
+      const deduped = dedupeParts(arr);
       if(!supabase){
-        parts = dedupeParts([...parts, ...sample]); saveLocalFallback(); render(); return;
+        parts = dedupeParts([...parts, ...deduped]); saveLocalFallback(); render(); return;
       }
       if(!isAdmin){ alert("Admins only."); return; }
-      const { error } = await supabase.from(settings.tableName || "parts_catalog").upsert(sample, { onConflict: "partNumber" });
-      if(error){ console.error(error); alert("Could not load sample data."); return; }
+      const { error } = await supabase.from(settings.tableName || "parts_catalog").upsert(deduped, { onConflict: "partNumber" });
+      if(error){ console.error(error); alert("Could not load parts seed."); return; }
       await loadFromRemote();
     }
+
+    async function loadSample(){ await importArrayDirect([
+      {group:"APP",brand:"Freightliner",status:"In Stock",partNumber:"16-724",partName:"7-Way Receptacle",category:"Electrical",cost:28.5,avgCharge:49.99,roCount:12,vendor:"Dealer",crossRef:"",fits:"M2 / trailer connection",keywords:"7-way receptacle trailer plug electrical",location:"",notes:"Common trailer connection part.",photos:[]},
+      {group:"Tomy Trailer",brand:"Wabash",status:"Low Stock",partNumber:"31317-04",partName:"True Tee Fitting",category:"ATIS",cost:11.75,avgCharge:32,roCount:8,vendor:"FleetPride",crossRef:"",fits:"ATIS trailers",keywords:"true tee fitting atis",location:"",notes:"Keep extras in stock.",photos:[]}
+    ]); }
 
     async function signInPassword(){
       if(!supabase){ alert("Connect Shared Setup first."); return; }
@@ -826,32 +847,19 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       await refreshAuthState();
       $("authModal").classList.remove("show");
     }
-
     async function sendMagicLink(){
       if(!supabase){ alert("Connect Shared Setup first."); return; }
       const email = $("loginEmail").value.trim();
       const { error } = await supabase.auth.signInWithOtp({ email });
       if(error){ alert(error.message); return; }
-      alert("Magic link sent. Open the email on this device, then come back to the app.");
+      alert("Magic link sent.");
     }
-
-    async function signOutNow(){
-      if(!supabase) return;
-      await supabase.auth.signOut();
-      await refreshAuthState();
-    }
+    async function signOutNow(){ if(!supabase) return; await supabase.auth.signOut(); await refreshAuthState(); }
 
     document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => { currentTab = btn.dataset.tab; render(); }));
-    ["searchInput","filterBrand","filterCategory","filterStatus","sortBy","photoOnly"].forEach(id => {
-      $(id).addEventListener("input", render);
-      $(id).addEventListener("change", render);
-    });
+    ["searchInput","filterBrand","filterCategory","filterStatus","sortBy","photoOnly"].forEach(id => { $(id).addEventListener("input", render); $(id).addEventListener("change", render); });
 
-    function quickBrand(brand){
-      $("filterBrand").value = brand;
-      currentTab = (brand === "Hyundai" || brand === "Wabash") ? "Tomy Trailer" : "APP";
-      render();
-    }
+    function quickBrand(brand){ $("filterBrand").value = brand; currentTab = (brand === "Hyundai" || brand === "Wabash") ? "Tomy Trailer" : "APP"; render(); }
     $("showFreightliner").addEventListener("click", () => quickBrand("Freightliner"));
     $("showVolvo").addEventListener("click", () => quickBrand("Volvo"));
     $("showKenworth").addEventListener("click", () => quickBrand("Kenworth"));
@@ -867,20 +875,14 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     $("closeSettingsBtn").addEventListener("click", () => $("settingsModal").classList.remove("show"));
     $("closeAuthBtn").addEventListener("click", () => $("authModal").classList.remove("show"));
     $("clearSettingsBtn").addEventListener("click", () => {
-      settings = {};
-      saveSettings();
-      $("settingsModal").classList.remove("show");
-      realtimeSubscribed = false;
-      connectSupabase();
+      settings = { supabaseUrl: DEFAULT_SUPABASE_URL, supabaseAnonKey: DEFAULT_SUPABASE_ANON_KEY, tableName: "parts_catalog" };
+      saveSettings(); realtimeSubscribed = false; connectSupabase(); $("settingsModal").classList.remove("show");
     });
     $("saveSettingsBtn").addEventListener("click", async () => {
       settings.supabaseUrl = $("supabaseUrl").value.trim();
       settings.supabaseAnonKey = $("supabaseAnonKey").value.trim();
       settings.tableName = $("tableName").value.trim() || "parts_catalog";
-      saveSettings();
-      $("settingsModal").classList.remove("show");
-      realtimeSubscribed = false;
-      await connectSupabase();
+      saveSettings(); realtimeSubscribed = false; $("settingsModal").classList.remove("show"); await connectSupabase();
     });
 
     $("signInBtn").addEventListener("click", signInPassword);
@@ -889,12 +891,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
     $("group").addEventListener("change", updateBrandOptions);
     $("photoInput").addEventListener("change", async (e) => {
-      const files = e.target.files;
-      if(!files || !files.length) return;
-      const imgs = await readFilesAsDataURLs(files);
-      pendingPhotos = pendingPhotos.concat(imgs);
-      refreshPhotoPreview();
-      e.target.value = "";
+      const files = e.target.files; if(!files || !files.length) return;
+      const imgs = await readFilesAsDataURLs(files); pendingPhotos = pendingPhotos.concat(imgs); refreshPhotoPreview(); e.target.value = "";
     });
 
     $("partForm").addEventListener("submit", async (e) => {
@@ -913,8 +911,11 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     });
     $("clearBtn").addEventListener("click", clearForm);
     $("importBtn").addEventListener("click", () => $("importFile").click());
-    $("importFile").addEventListener("change", (e) => { const file = e.target.files[0]; if(file) importJson(file); e.target.value = ""; });
-    $("sampleBtn").addEventListener("click", loadSample);
+    $("importFile").addEventListener("change", async (e) => {
+      const file = e.target.files[0]; if(file) await importAnyFile(file); e.target.value = "";
+    });
+    $("loadSampleBtn").addEventListener("click", loadSample);
+    $("loadTopSeedBtn").addEventListener("click", loadTopSeed);
     $("exportJsonBtn").addEventListener("click", exportJson);
     $("exportCsvBtn").addEventListener("click", exportCsv);
 
@@ -922,7 +923,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
     updateBrandOptions();
     loadLocalFallback();
     render();
-    setAdminUI();
     populateSettingsForm();
     connectSupabase();
   </script>
