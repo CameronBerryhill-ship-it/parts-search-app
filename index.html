@@ -4,17 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Parts Database</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg: #0f172a;
       --panel: #111827;
       --panel-2: #1f2937;
-      --text: #f8fafc;
-      --muted: #cbd5e1;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
       --accent: #22c55e;
+      --accent-2: #16a34a;
       --warn: #f59e0b;
       --danger: #ef4444;
       --border: #334155;
@@ -23,201 +21,279 @@
     body {
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
-      background: #0b1120;
+      background: linear-gradient(180deg, #020617 0%, #111827 100%);
       color: var(--text);
     }
     .wrap {
-      max-width: 1250px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 24px;
     }
     .card {
-      background: var(--panel);
+      background: rgba(17, 24, 39, 0.95);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.25);
       margin-bottom: 18px;
     }
     h1, h2, h3, h4, p { margin-top: 0; }
-    .row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
+    .grid {
+      display: grid;
+      gap: 16px;
     }
-    .row > * { flex: 1 1 220px; }
-    input, button, select, textarea {
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 900px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    input, select, button, textarea {
       width: 100%;
-      padding: 11px 12px;
-      border-radius: 10px;
+      border-radius: 12px;
       border: 1px solid var(--border);
-      background: var(--panel-2);
+      background: #0b1220;
       color: var(--text);
+      padding: 12px 14px;
       font-size: 14px;
     }
-    input[type="file"] { padding: 8px; }
+    input::file-selector-button {
+      margin-right: 12px;
+      border: none;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
     button {
       cursor: pointer;
+      background: var(--accent);
+      color: #052e16;
       font-weight: 700;
+      border: none;
     }
-    button.primary { background: var(--accent); color: #04110a; border: none; }
-    button.warn { background: var(--warn); color: #1f1400; border: none; }
-    button.danger { background: var(--danger); color: white; border: none; }
-    button.ghost { background: transparent; }
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.warn { background: var(--warn); color: #111827; }
+    button.danger { background: var(--danger); color: white; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .muted { color: var(--muted); }
     .hidden { display: none !important; }
-    .pill {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: #0f766e;
-      color: white;
-      font-size: 12px;
-      font-weight: 700;
-      margin-right: 8px;
+    .toolbar {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items: end;
     }
-    .pill.warn { background: #b45309; }
-    .pill.danger { background: #b91c1c; }
+    @media (max-width: 900px) {
+      .toolbar { grid-template-columns: 1fr; }
+    }
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
     }
+    @media (max-width: 900px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     .stat {
-      background: var(--panel-2);
+      background: #0b1220;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 14px;
     }
-    .stat .num { font-size: 28px; font-weight: 800; }
+    .stat .big { font-size: 28px; font-weight: 800; }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 14px;
     }
     th, td {
+      padding: 12px;
       border-bottom: 1px solid var(--border);
-      padding: 10px 8px;
       text-align: left;
       vertical-align: top;
-      font-size: 14px;
     }
     th {
-      cursor: pointer;
       background: #0b1220;
+      cursor: pointer;
+      user-select: none;
       position: sticky;
       top: 0;
+      z-index: 1;
     }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .pill.green { background: rgba(34,197,94,.18); color: #86efac; }
+    .pill.orange { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .pill.red { background: rgba(239,68,68,.18); color: #fca5a5; }
     .review-item {
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
-      background: var(--panel-2);
+      border-radius: 14px;
+      padding: 14px;
+      background: #0b1220;
+      margin-bottom: 12px;
     }
-    .split {
+    .review-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 14px;
     }
-    .small { font-size: 12px; color: var(--muted); }
-    .message {
-      padding: 10px 12px;
-      border-radius: 10px;
+    @media (max-width: 900px) {
+      .review-grid { grid-template-columns: 1fr; }
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
       margin-top: 12px;
-      background: #132238;
-      border: 1px solid #29486f;
     }
-    @media (max-width: 800px) {
-      .split { grid-template-columns: 1fr; }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
     }
+    .notice {
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+    }
+    .success { border-color: rgba(34,197,94,.4); }
+    .warning { border-color: rgba(245,158,11,.4); }
+    .error { border-color: rgba(239,68,68,.4); }
+    code.inline {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+    .footer-space { height: 24px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <h1>Shared Parts Database</h1>
-      <p>Logged-in users can upload parts, search, sort, and review duplicate warnings without changing original part numbers.</p>
-      <div class="message">
-        <strong>Before using:</strong> put your Supabase URL and anon key in the config section inside this file, then run the SQL shown below in Supabase.
+      <p class="muted">Users can upload parts, keep original part numbers intact, search, sort, and review duplicates before import.</p>
+      <div class="notice warning">
+        <strong>Setup first:</strong> Replace <code class="inline">YOUR_SUPABASE_URL</code> and <code class="inline">YOUR_SUPABASE_ANON_KEY</code> in the script near the bottom of this file. Then run the SQL from the “Supabase SQL Setup” box after signing in.
       </div>
     </div>
 
-    <div class="card" id="setupCard">
-      <h2>Supabase SQL</h2>
-      <textarea rows="12" readonly>
-create table if not exists parts (
-  id uuid primary key default gen_random_uuid(),
-  part_number_original text not null,
-  part_number_normalized text not null,
-  description text,
-  manufacturer text,
-  ro_count integer default 0,
-  notes text,
-  uploaded_by uuid,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
-create index if not exists idx_parts_original on parts (part_number_original);
-create index if not exists idx_parts_normalized on parts (part_number_normalized);
-
-alter table parts enable row level security;
-
-create policy "authenticated can read parts"
-on parts for select
-using (auth.role() = 'authenticated');
-
-create policy "authenticated can insert parts"
-on parts for insert
-with check (auth.role() = 'authenticated');
-
-create policy "authenticated can update parts"
-on parts for update
-using (auth.role() = 'authenticated');
-      </textarea>
+    <div id="authCard" class="card">
+      <div class="section-title">
+        <h2>Login</h2>
+        <span class="muted">Required before upload or editing</span>
+      </div>
+      <div id="authMessage"></div>
+      <div class="grid grid-2">
+        <div>
+          <label>Email</label>
+          <input id="email" type="email" placeholder="name@example.com" />
+        </div>
+        <div>
+          <label>Password</label>
+          <input id="password" type="password" placeholder="Password" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="loginBtn">Login</button>
+        <button id="signupBtn" class="secondary">Create Account</button>
+      </div>
     </div>
 
-    <div class="card" id="authCard">
-      <h2>Login</h2>
-      <div class="row">
-        <div><input id="email" type="email" placeholder="Email" /></div>
-        <div><input id="password" type="password" placeholder="Password" /></div>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <div><button id="loginBtn" class="primary">Login</button></div>
-        <div><button id="signupBtn" class="ghost">Create Account</button></div>
-        <div><button id="logoutBtn" class="danger hidden">Logout</button></div>
-      </div>
-      <div id="authMessage" class="message hidden"></div>
-    </div>
-
-    <div id="app" class="hidden">
+    <div id="appShell" class="hidden">
       <div class="card">
-        <div class="row" style="align-items:end;">
+        <div class="section-title">
           <div>
-            <h2 style="margin-bottom:8px;">Upload Parts</h2>
-            <p class="small">Accepts CSV, XLSX, and XLS. Keep your original part numbers exactly as entered.</p>
+            <h2>Dashboard</h2>
+            <p class="muted" id="userLine">Signed in</p>
           </div>
-          <div><input id="partsFile" type="file" accept=".csv,.xlsx,.xls" /></div>
-          <div><button id="scanUploadBtn" class="primary">Scan Upload</button></div>
+          <div class="actions">
+            <button id="refreshBtn" class="secondary">Refresh</button>
+            <button id="logoutBtn" class="danger">Logout</button>
+          </div>
         </div>
-        <div id="uploadMessage" class="message hidden"></div>
-      </div>
-
-      <div class="card hidden" id="reviewCard">
-        <h2>Upload Review</h2>
-        <div class="stats" id="reviewStats"></div>
-        <div style="margin-top:16px;">
-          <button id="applyReviewBtn" class="primary">Apply Selected Actions</button>
+        <div class="stats">
+          <div class="stat"><div class="muted">Total Parts</div><div class="big" id="statTotal">0</div></div>
+          <div class="stat"><div class="muted">Filtered Results</div><div class="big" id="statFiltered">0</div></div>
+          <div class="stat"><div class="muted">Top RO Count</div><div class="big" id="statTopRO">0</div></div>
+          <div class="stat"><div class="muted">Pending Review</div><div class="big" id="statPending">0</div></div>
         </div>
-        <div id="reviewList" style="margin-top:16px;"></div>
       </div>
 
       <div class="card">
-        <h2>Search and Sort</h2>
-        <div class="row">
-          <div><input id="searchInput" placeholder="Search part number, description, manufacturer, notes" /></div>
+        <div class="section-title">
           <div>
-            <select id="sortField">
+            <h2>Upload Parts List</h2>
+            <p class="muted">Supports CSV now and XLSX/XLS if SheetJS loads. Original part numbers stay exactly as entered.</p>
+          </div>
+        </div>
+        <div id="uploadMessage"></div>
+        <div class="grid grid-3">
+          <div>
+            <label>Choose file</label>
+            <input id="partsFile" type="file" accept=".csv,.xlsx,.xls" />
+          </div>
+          <div>
+            <label>Expected columns</label>
+            <input value="part_number, description, manufacturer, ro_count, notes" readonly />
+          </div>
+          <div>
+            <label>Import action</label>
+            <button id="scanUploadBtn">Scan Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="reviewCard" class="card hidden">
+        <div class="section-title">
+          <div>
+            <h2>Upload Review</h2>
+            <p class="muted">Review exact duplicates and possible duplicates before importing.</p>
+          </div>
+          <div class="actions">
+            <button id="importApprovedBtn">Import Approved New Parts</button>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="muted">New Parts</div><div class="big" id="reviewNew">0</div></div>
+          <div class="stat"><div class="muted">Exact Duplicates</div><div class="big" id="reviewExact">0</div></div>
+          <div class="stat"><div class="muted">Possible Duplicates</div><div class="big" id="reviewPossible">0</div></div>
+          <div class="stat"><div class="muted">Rows Scanned</div><div class="big" id="reviewRows">0</div></div>
+        </div>
+        <div id="reviewList"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Search and Sort Parts</h2>
+            <p class="muted">Search by part number, description, or manufacturer.</p>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div>
+            <label>Search</label>
+            <input id="searchInput" placeholder="Type a part number, description, or manufacturer" />
+          </div>
+          <div>
+            <label>Sort by</label>
+            <select id="sortBy">
               <option value="ro_count">RO Count</option>
               <option value="part_number_original">Part Number</option>
               <option value="description">Description</option>
@@ -227,469 +303,756 @@ using (auth.role() = 'authenticated');
             </select>
           </div>
           <div>
+            <label>Direction</label>
             <select id="sortDirection">
               <option value="desc">Descending</option>
               <option value="asc">Ascending</option>
             </select>
           </div>
-          <div><button id="refreshBtn">Refresh</button></div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="exportCsvBtn" class="secondary">Export Filtered CSV</button>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="stats" id="dashboardStats"></div>
+        <div class="section-title">
+          <div>
+            <h2>Parts Table</h2>
+            <p class="muted">Shared master list.</p>
+          </div>
+        </div>
+        <div style="overflow:auto; max-height: 65vh;">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="part_number_original">Part Number</th>
+                <th data-sort="description">Description</th>
+                <th data-sort="manufacturer">Manufacturer</th>
+                <th data-sort="ro_count">RO Count</th>
+                <th data-sort="created_at">Added</th>
+                <th data-sort="updated_at">Updated</th>
+                <th>Uploaded By</th>
+              </tr>
+            </thead>
+            <tbody id="partsTbody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="card">
-        <h2>Parts</h2>
-        <div id="tableWrap"></div>
+        <div class="section-title">
+          <div>
+            <h2>Supabase SQL Setup</h2>
+            <p class="muted">Run this once in the Supabase SQL editor.</p>
+          </div>
+        </div>
+        <textarea rows="18" readonly>create extension if not exists pgcrypto;
+
+create table if not exists public.parts (
+  id uuid primary key default gen_random_uuid(),
+  part_number_original text not null,
+  part_number_normalized text not null,
+  description text,
+  manufacturer text,
+  ro_count integer default 0,
+  notes text,
+  uploaded_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_parts_original on public.parts (part_number_original);
+create index if not exists idx_parts_normalized on public.parts (part_number_normalized);
+create index if not exists idx_parts_ro_count on public.parts (ro_count);
+
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_parts_updated_at on public.parts;
+create trigger trg_parts_updated_at
+before update on public.parts
+for each row execute function public.set_updated_at();
+
+alter table public.parts enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'parts'
+      and policyname = 'Allow authenticated select'
+  ) then
+    create policy "Allow authenticated select"
+    on public.parts for select
+    to authenticated
+    using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'parts'
+      and policyname = 'Allow authenticated insert'
+  ) then
+    create policy "Allow authenticated insert"
+    on public.parts for insert
+    to authenticated
+    with check (auth.uid() = uploaded_by or uploaded_by is null);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'parts'
+      and policyname = 'Allow authenticated update'
+  ) then
+    create policy "Allow authenticated update"
+    on public.parts for update
+    to authenticated
+    using (true)
+    with check (true);
+  end if;
+end $$;</textarea>
       </div>
     </div>
+
+    <div class="footer-space"></div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script>
-    const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
-    const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+    const SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
 
-    let supabaseClient = null;
-    let currentUser = null;
-    let partsCache = [];
-    let pendingReview = [];
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    function initSupabase() {
-      if (!SUPABASE_URL || SUPABASE_URL.includes("PASTE_YOUR")) {
-        showMessage("authMessage", "Paste your Supabase URL and anon key into the config section in this file.");
-        return false;
+    const state = {
+      user: null,
+      allParts: [],
+      filteredParts: [],
+      review: {
+        rowsScanned: 0,
+        newParts: [],
+        exactDuplicates: [],
+        possibleDuplicates: []
       }
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      return true;
-    }
-
-    function normalizePartNumber(value = "") {
-      return String(value).toUpperCase().replace(/[\s\-./]/g, "").trim();
-    }
-
-    function showMessage(id, text, show = true) {
-      const el = document.getElementById(id);
-      el.textContent = text;
-      el.classList.toggle("hidden", !show);
-    }
-
-    function escapeHtml(str = "") {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    async function signup() {
-      if (!supabaseClient) return;
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value.trim();
-      if (!email || !password) {
-        showMessage("authMessage", "Enter email and password first.");
-        return;
-      }
-      const { error } = await supabaseClient.auth.signUp({ email, password });
-      showMessage("authMessage", error ? error.message : "Account created. Check your email if confirmation is enabled.");
-    }
-
-    async function login() {
-      if (!supabaseClient) return;
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value.trim();
-      if (!email || !password) {
-        showMessage("authMessage", "Enter email and password first.");
-        return;
-      }
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      showMessage("authMessage", error ? error.message : "Logged in.");
-      if (!error) await handleSession();
-    }
-
-    async function logout() {
-      if (!supabaseClient) return;
-      await supabaseClient.auth.signOut();
-      currentUser = null;
-      document.getElementById("app").classList.add("hidden");
-      document.getElementById("logoutBtn").classList.add("hidden");
-      showMessage("authMessage", "Logged out.");
-    }
-
-    async function handleSession() {
-      const { data } = await supabaseClient.auth.getUser();
-      currentUser = data?.user || null;
-      const loggedIn = !!currentUser;
-      document.getElementById("app").classList.toggle("hidden", !loggedIn);
-      document.getElementById("logoutBtn").classList.toggle("hidden", !loggedIn);
-      if (loggedIn) {
-        showMessage("authMessage", `Logged in as ${currentUser.email}`);
-        await loadParts();
-      }
-    }
-
-    function parseCsvFile(file) {
-      return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => resolve(results.data || []),
-          error: reject
-        });
-      });
-    }
-
-    async function parseSpreadsheet(file) {
-      const name = file.name.toLowerCase();
-      if (name.endsWith(".csv")) return await parseCsvFile(file);
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      return XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-    }
-
-    function pickField(row, keys) {
-      const entries = Object.keys(row);
-      for (const wanted of keys) {
-        const found = entries.find(k => String(k).trim().toLowerCase() === wanted.toLowerCase());
-        if (found) return row[found];
-      }
-      return "";
-    }
-
-    async function scanUpload() {
-      if (!currentUser) {
-        showMessage("uploadMessage", "Log in first.");
-        return;
-      }
-      const file = document.getElementById("partsFile").files[0];
-      if (!file) {
-        showMessage("uploadMessage", "Choose a CSV or Excel file first.");
-        return;
-      }
-
-      showMessage("uploadMessage", "Scanning file...");
-      const rows = await parseSpreadsheet(file);
-
-      pendingReview = rows.map((row, index) => {
-        const original = String(
-          pickField(row, ["part_number", "part number", "part #", "pn", "p/n"])
-        ).trim();
-        const description = String(pickField(row, ["description", "desc"])) .trim();
-        const manufacturer = String(pickField(row, ["manufacturer", "brand", "mfr"])) .trim();
-        const roCountRaw = pickField(row, ["ro_count", "ro count", "rocount", "count"]);
-        const notes = String(pickField(row, ["notes", "note"])) .trim();
-        const ro_count = Number(roCountRaw || 0) || 0;
-        const normalized = normalizePartNumber(original);
-
-        let action = "skip";
-        let status = "invalid";
-        let exactMatch = null;
-        let normalizedMatch = null;
-
-        if (original) {
-          exactMatch = partsCache.find(p => (p.part_number_original || "") === original) || null;
-          normalizedMatch = partsCache.find(p => (p.part_number_normalized || "") === normalized) || null;
-
-          if (exactMatch) {
-            status = "exact_duplicate";
-            action = "merge_exact";
-          } else if (normalizedMatch) {
-            status = "possible_duplicate";
-            action = "keep_separate";
-          } else {
-            status = "new";
-            action = "insert";
-          }
-        }
-
-        return {
-          rowIndex: index + 1,
-          original,
-          normalized,
-          description,
-          manufacturer,
-          ro_count,
-          notes,
-          status,
-          action,
-          exactMatch,
-          normalizedMatch
-        };
-      });
-
-      renderReview();
-      showMessage("uploadMessage", `Scan complete. ${pendingReview.length} rows checked.`);
-    }
-
-    function renderReview() {
-      const card = document.getElementById("reviewCard");
-      card.classList.remove("hidden");
-
-      const counts = {
-        total: pendingReview.length,
-        new: pendingReview.filter(x => x.status === "new").length,
-        exact: pendingReview.filter(x => x.status === "exact_duplicate").length,
-        possible: pendingReview.filter(x => x.status === "possible_duplicate").length,
-        invalid: pendingReview.filter(x => x.status === "invalid").length,
-      };
-
-      document.getElementById("reviewStats").innerHTML = `
-        <div class="stat"><div>Total Rows</div><div class="num">${counts.total}</div></div>
-        <div class="stat"><div>New Parts</div><div class="num">${counts.new}</div></div>
-        <div class="stat"><div>Exact Duplicates</div><div class="num">${counts.exact}</div></div>
-        <div class="stat"><div>Possible Duplicates</div><div class="num">${counts.possible}</div></div>
-        <div class="stat"><div>Invalid Rows</div><div class="num">${counts.invalid}</div></div>
-      `;
-
-      const html = pendingReview.map((item, i) => {
-        const pillClass = item.status === "new" ? "" : item.status === "possible_duplicate" ? "warn" : "danger";
-        const statusLabel = item.status.replaceAll("_", " ");
-        const existing = item.exactMatch || item.normalizedMatch;
-
-        let actionOptions = "";
-        if (item.status === "new") {
-          actionOptions = `<option value="insert" ${item.action === "insert" ? "selected" : ""}>Add New</option><option value="skip">Skip</option>`;
-        } else if (item.status === "exact_duplicate") {
-          actionOptions = `
-            <option value="merge_exact" ${item.action === "merge_exact" ? "selected" : ""}>Merge Into Existing</option>
-            <option value="skip">Skip</option>`;
-        } else if (item.status === "possible_duplicate") {
-          actionOptions = `
-            <option value="keep_separate" ${item.action === "keep_separate" ? "selected" : ""}>Keep Separate</option>
-            <option value="merge_possible" ${item.action === "merge_possible" ? "selected" : ""}>Merge Into Existing</option>
-            <option value="skip">Skip</option>`;
-        } else {
-          actionOptions = `<option value="skip" selected>Skip</option>`;
-        }
-
-        return `
-          <div class="review-item">
-            <div style="margin-bottom:10px;"><span class="pill ${pillClass}">${escapeHtml(statusLabel)}</span>Row ${item.rowIndex}</div>
-            <div class="split">
-              <div>
-                <h4>Uploaded</h4>
-                <div><strong>Part #:</strong> ${escapeHtml(item.original || "—")}</div>
-                <div><strong>Description:</strong> ${escapeHtml(item.description || "—")}</div>
-                <div><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer || "—")}</div>
-                <div><strong>RO Count:</strong> ${item.ro_count}</div>
-                <div><strong>Normalized:</strong> ${escapeHtml(item.normalized || "—")}</div>
-              </div>
-              <div>
-                <h4>Existing Match</h4>
-                ${existing ? `
-                  <div><strong>Part #:</strong> ${escapeHtml(existing.part_number_original || "—")}</div>
-                  <div><strong>Description:</strong> ${escapeHtml(existing.description || "—")}</div>
-                  <div><strong>Manufacturer:</strong> ${escapeHtml(existing.manufacturer || "—")}</div>
-                  <div><strong>RO Count:</strong> ${existing.ro_count || 0}</div>
-                  <div><strong>Normalized:</strong> ${escapeHtml(existing.part_number_normalized || "—")}</div>
-                ` : `<div>None</div>`}
-              </div>
-            </div>
-            <div class="row" style="margin-top:12px;">
-              <div>
-                <select onchange="setReviewAction(${i}, this.value)">${actionOptions}</select>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      document.getElementById("reviewList").innerHTML = html || "<p>No rows found.</p>";
-    }
-
-    window.setReviewAction = function(index, value) {
-      pendingReview[index].action = value;
     };
 
-    async function applyReview() {
-      if (!currentUser) return;
-      const inserts = [];
-      const updates = [];
-      let skipped = 0;
+    const el = {
+      authCard: document.getElementById('authCard'),
+      appShell: document.getElementById('appShell'),
+      authMessage: document.getElementById('authMessage'),
+      uploadMessage: document.getElementById('uploadMessage'),
+      email: document.getElementById('email'),
+      password: document.getElementById('password'),
+      loginBtn: document.getElementById('loginBtn'),
+      signupBtn: document.getElementById('signupBtn'),
+      logoutBtn: document.getElementById('logoutBtn'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      userLine: document.getElementById('userLine'),
+      statTotal: document.getElementById('statTotal'),
+      statFiltered: document.getElementById('statFiltered'),
+      statTopRO: document.getElementById('statTopRO'),
+      statPending: document.getElementById('statPending'),
+      partsFile: document.getElementById('partsFile'),
+      scanUploadBtn: document.getElementById('scanUploadBtn'),
+      reviewCard: document.getElementById('reviewCard'),
+      reviewNew: document.getElementById('reviewNew'),
+      reviewExact: document.getElementById('reviewExact'),
+      reviewPossible: document.getElementById('reviewPossible'),
+      reviewRows: document.getElementById('reviewRows'),
+      reviewList: document.getElementById('reviewList'),
+      importApprovedBtn: document.getElementById('importApprovedBtn'),
+      searchInput: document.getElementById('searchInput'),
+      sortBy: document.getElementById('sortBy'),
+      sortDirection: document.getElementById('sortDirection'),
+      partsTbody: document.getElementById('partsTbody'),
+      exportCsvBtn: document.getElementById('exportCsvBtn')
+    };
 
-      for (const item of pendingReview) {
-        if (item.action === "skip" || item.status === "invalid") {
-          skipped++;
+    function showMessage(target, text, type = 'success') {
+      target.innerHTML = text ? `<div class="notice ${type}">${text}</div>` : '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function normalizePartNumber(partNumber = '') {
+      return String(partNumber)
+        .toUpperCase()
+        .replace(/[\s\-./]/g, '')
+        .trim();
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let current = '';
+      let row = [];
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
           continue;
         }
 
-        if (item.action === "insert" || item.action === "keep_separate") {
-          inserts.push({
-            part_number_original: item.original,
-            part_number_normalized: item.normalized,
-            description: item.description,
-            manufacturer: item.manufacturer,
-            ro_count: item.ro_count,
-            notes: item.notes,
-            uploaded_by: currentUser.id,
-            updated_at: new Date().toISOString()
-          });
+        if (char === ',' && !inQuotes) {
+          row.push(current);
+          current = '';
+          continue;
         }
 
-        if (item.action === "merge_exact" || item.action === "merge_possible") {
-          const existing = item.exactMatch || item.normalizedMatch;
-          if (!existing) { skipped++; continue; }
-          updates.push({
-            id: existing.id,
-            ro_count: Number(existing.ro_count || 0) + Number(item.ro_count || 0),
-            description: existing.description || item.description || "",
-            manufacturer: existing.manufacturer || item.manufacturer || "",
-            notes: existing.notes || item.notes || "",
-            updated_at: new Date().toISOString()
-          });
+        if ((char === '\n' || char === '\r') && !inQuotes) {
+          if (char === '\r' && next === '\n') i++;
+          row.push(current);
+          if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
+          row = [];
+          current = '';
+          continue;
         }
+
+        current += char;
       }
 
-      if (inserts.length) {
-        const { error } = await supabaseClient.from("parts").insert(inserts);
-        if (error) {
-          showMessage("uploadMessage", `Insert error: ${error.message}`);
-          return;
-        }
+      if (current.length || row.length) {
+        row.push(current);
+        if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
       }
 
-      for (const upd of updates) {
-        const { error } = await supabaseClient
-          .from("parts")
-          .update({
-            ro_count: upd.ro_count,
-            description: upd.description,
-            manufacturer: upd.manufacturer,
-            notes: upd.notes,
-            updated_at: upd.updated_at
-          })
-          .eq("id", upd.id);
-        if (error) {
-          showMessage("uploadMessage", `Update error: ${error.message}`);
-          return;
-        }
-      }
-
-      showMessage("uploadMessage", `Done. Added ${inserts.length}, merged ${updates.length}, skipped ${skipped}.`);
-      pendingReview = [];
-      document.getElementById("reviewCard").classList.add("hidden");
-      await loadParts();
-      document.getElementById("partsFile").value = "";
+      if (!rows.length) return [];
+      const headers = rows[0].map(h => String(h).trim());
+      return rows.slice(1).map(cols => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = (cols[index] ?? '').trim();
+        });
+        return obj;
+      });
     }
 
-    async function loadParts() {
-      if (!currentUser) return;
-      const sortField = document.getElementById("sortField").value;
-      const ascending = document.getElementById("sortDirection").value === "asc";
-      const { data, error } = await supabaseClient
-        .from("parts")
-        .select("*")
-        .order(sortField, { ascending });
+    async function fileToRows(file) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.csv')) {
+        return parseCSV(await file.text());
+      }
+      if ((name.endsWith('.xlsx') || name.endsWith('.xls')) && window.XLSX) {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        return XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+      }
+      throw new Error('Unsupported file type. Use CSV, XLSX, or XLS.');
+    }
 
-      if (error) {
-        document.getElementById("tableWrap").innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+    function readRowValue(row, keys) {
+      for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+          return String(row[key]).trim();
+        }
+      }
+      return '';
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleString();
+    }
+
+    function updateStats() {
+      el.statTotal.textContent = state.allParts.length;
+      el.statFiltered.textContent = state.filteredParts.length;
+      el.statTopRO.textContent = state.allParts.length ? Math.max(...state.allParts.map(p => Number(p.ro_count || 0))) : 0;
+      el.statPending.textContent = state.review.exactDuplicates.length + state.review.possibleDuplicates.length;
+    }
+
+    function applyFilters() {
+      const q = el.searchInput.value.trim().toLowerCase();
+      const sortBy = el.sortBy.value;
+      const direction = el.sortDirection.value;
+      let parts = [...state.allParts];
+
+      if (q) {
+        parts = parts.filter(part =>
+          String(part.part_number_original || '').toLowerCase().includes(q) ||
+          String(part.description || '').toLowerCase().includes(q) ||
+          String(part.manufacturer || '').toLowerCase().includes(q)
+        );
+      }
+
+      parts.sort((a, b) => {
+        let av = a[sortBy] ?? '';
+        let bv = b[sortBy] ?? '';
+        if (sortBy === 'ro_count') {
+          av = Number(av || 0);
+          bv = Number(bv || 0);
+          return direction === 'asc' ? av - bv : bv - av;
+        }
+        av = String(av).toLowerCase();
+        bv = String(bv).toLowerCase();
+        if (av < bv) return direction === 'asc' ? -1 : 1;
+        if (av > bv) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      state.filteredParts = parts;
+      renderPartsTable();
+      updateStats();
+    }
+
+    function renderPartsTable() {
+      if (!state.filteredParts.length) {
+        el.partsTbody.innerHTML = `<tr><td colspan="7" class="muted">No parts found.</td></tr>`;
         return;
       }
 
-      partsCache = data || [];
-      renderStats();
-      renderTable();
+      el.partsTbody.innerHTML = state.filteredParts.map(part => `
+        <tr>
+          <td>${escapeHtml(part.part_number_original)}</td>
+          <td>${escapeHtml(part.description || '')}</td>
+          <td>${escapeHtml(part.manufacturer || '')}</td>
+          <td>${escapeHtml(part.ro_count || 0)}</td>
+          <td>${escapeHtml(formatDate(part.created_at))}</td>
+          <td>${escapeHtml(formatDate(part.updated_at))}</td>
+          <td>${escapeHtml(part.uploaded_by || '')}</td>
+        </tr>
+      `).join('');
     }
 
-    function filteredParts() {
-      const q = document.getElementById("searchInput").value.trim().toLowerCase();
-      if (!q) return [...partsCache];
-      return partsCache.filter(p => {
-        const blob = [
-          p.part_number_original,
-          p.part_number_normalized,
-          p.description,
-          p.manufacturer,
-          p.notes
-        ].join(" ").toLowerCase();
-        return blob.includes(q);
-      });
-    }
+    async function loadParts() {
+      const { data, error } = await supabase
+        .from('parts')
+        .select('*')
+        .order('ro_count', { ascending: false });
 
-    function renderStats() {
-      const items = filteredParts();
-      const total = items.length;
-      const totalRO = items.reduce((sum, p) => sum + Number(p.ro_count || 0), 0);
-      const uniqueNormalized = new Set(items.map(x => x.part_number_normalized)).size;
-      const highUse = [...items].sort((a, b) => Number(b.ro_count || 0) - Number(a.ro_count || 0))[0];
-      document.getElementById("dashboardStats").innerHTML = `
-        <div class="stat"><div>Total Parts</div><div class="num">${total}</div></div>
-        <div class="stat"><div>Total RO Count</div><div class="num">${totalRO}</div></div>
-        <div class="stat"><div>Unique Normalized Values</div><div class="num">${uniqueNormalized}</div></div>
-        <div class="stat"><div>Top Part</div><div class="num" style="font-size:18px;">${escapeHtml(highUse?.part_number_original || "—")}</div></div>
-      `;
-    }
-
-    function renderTable() {
-      const items = filteredParts();
-      const html = `
-        <table>
-          <thead>
-            <tr>
-              <th onclick="changeSort('part_number_original')">Part Number</th>
-              <th onclick="changeSort('description')">Description</th>
-              <th onclick="changeSort('manufacturer')">Manufacturer</th>
-              <th onclick="changeSort('ro_count')">RO Count</th>
-              <th onclick="changeSort('created_at')">Added</th>
-              <th onclick="changeSort('updated_at')">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(p => `
-              <tr>
-                <td>${escapeHtml(p.part_number_original || "")}</td>
-                <td>${escapeHtml(p.description || "")}</td>
-                <td>${escapeHtml(p.manufacturer || "")}</td>
-                <td>${Number(p.ro_count || 0)}</td>
-                <td>${p.created_at ? new Date(p.created_at).toLocaleString() : ""}</td>
-                <td>${p.updated_at ? new Date(p.updated_at).toLocaleString() : ""}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
-      document.getElementById("tableWrap").innerHTML = html;
-    }
-
-    window.changeSort = async function(field) {
-      const sortField = document.getElementById("sortField");
-      const sortDirection = document.getElementById("sortDirection");
-      if (sortField.value === field) {
-        sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
-      } else {
-        sortField.value = field;
+      if (error) {
+        showMessage(el.uploadMessage, `Load error: ${escapeHtml(error.message)}`, 'error');
+        return;
       }
-      await loadParts();
+
+      state.allParts = data || [];
+      applyFilters();
+    }
+
+    function resetReview() {
+      state.review = {
+        rowsScanned: 0,
+        newParts: [],
+        exactDuplicates: [],
+        possibleDuplicates: []
+      };
+      el.reviewCard.classList.add('hidden');
+      el.reviewList.innerHTML = '';
+      updateStats();
+    }
+
+    function renderReview() {
+      el.reviewCard.classList.remove('hidden');
+      el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
+      el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
+      el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
+      el.reviewRows.textContent = state.review.rowsScanned;
+
+      let html = '';
+
+      if (state.review.exactDuplicates.length) {
+        html += `<h3>Exact Duplicates</h3>`;
+        state.review.exactDuplicates.forEach((item, index) => {
+          if (item.skip) return;
+          html += `
+            <div class="review-item">
+              <span class="pill red">Exact Duplicate</span>
+              <div class="review-grid" style="margin-top:10px;">
+                <div>
+                  <h4>Uploaded</h4>
+                  <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+                  <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+                  <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+                  <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
+                </div>
+                <div>
+                  <h4>Existing</h4>
+                  <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+                  <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+                  <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+                  <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
+                </div>
+              </div>
+              <div class="actions">
+                <button onclick="mergeExact(${index})">Merge Into Existing</button>
+                <button class="secondary" onclick="skipExact(${index})">Skip</button>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      if (state.review.possibleDuplicates.length) {
+        html += `<h3>Possible Duplicates</h3>`;
+        state.review.possibleDuplicates.forEach((item, index) => {
+          if (item.skip) return;
+          html += `
+            <div class="review-item">
+              <span class="pill orange">Possible Duplicate</span>
+              <div class="review-grid" style="margin-top:10px;">
+                <div>
+                  <h4>Uploaded</h4>
+                  <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+                  <p><strong>Normalized:</strong> ${escapeHtml(item.uploaded.part_number_normalized)}</p>
+                  <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+                  <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+                  <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
+                </div>
+                <div>
+                  <h4>Existing</h4>
+                  <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+                  <p><strong>Normalized:</strong> ${escapeHtml(item.existing.part_number_normalized)}</p>
+                  <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+                  <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+                  <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
+                </div>
+              </div>
+              <div class="actions">
+                <button onclick="mergePossible(${index})">Merge Into Existing</button>
+                <button class="warn" onclick="keepSeparate(${index})">Keep Separate and Add New</button>
+                <button class="secondary" onclick="skipPossible(${index})">Skip</button>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      if (state.review.newParts.length) {
+        html += `<h3>New Parts Ready to Import</h3>`;
+        state.review.newParts.forEach(item => {
+          if (item.skip) return;
+          html += `
+            <div class="review-item">
+              <span class="pill green">New Part</span>
+              <div style="margin-top:10px;">
+                <p><strong>Part #:</strong> ${escapeHtml(item.part_number_original)}</p>
+                <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
+                <p><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer)}</p>
+                <p><strong>RO Count:</strong> ${escapeHtml(item.ro_count)}</p>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      if (!html) {
+        html = `<div class="notice success">Nothing left to review.</div>`;
+      }
+      el.reviewList.innerHTML = html;
+      updateStats();
+    }
+
+    async function scanUpload() {
+      try {
+        showMessage(el.uploadMessage, '', 'success');
+        resetReview();
+
+        const file = el.partsFile.files[0];
+        if (!file) {
+          showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
+          return;
+        }
+
+        const rows = await fileToRows(file);
+        if (!rows.length) {
+          showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
+          return;
+        }
+
+        state.review.rowsScanned = rows.length;
+
+        const { data: existingParts, error } = await supabase
+          .from('parts')
+          .select('*');
+
+        if (error) throw error;
+
+        const existing = existingParts || [];
+
+        rows.forEach(row => {
+          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber']);
+          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc']);
+          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand']);
+          const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
+          const notes = readRowValue(row, ['notes', 'Notes']);
+
+          if (!original) return;
+
+          const normalized = normalizePartNumber(original);
+          const payload = {
+            part_number_original: original,
+            part_number_normalized: normalized,
+            description,
+            manufacturer,
+            ro_count: Number(roCountRaw || 0),
+            notes,
+            uploaded_by: state.user?.id || null
+          };
+
+          const exact = existing.find(x => String(x.part_number_original || '').trim() === original.trim());
+          if (exact) {
+            state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
+            return;
+          }
+
+          const possible = existing.find(x => String(x.part_number_normalized || '').trim() === normalized && String(x.part_number_original || '').trim() !== original.trim());
+          if (possible) {
+            state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false, action: null });
+            return;
+          }
+
+          state.review.newParts.push({ ...payload, skip: false });
+        });
+
+        renderReview();
+        showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Scan error: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    async function mergeExisting(existingId, uploaded) {
+      const { data: current, error: readError } = await supabase
+        .from('parts')
+        .select('*')
+        .eq('id', existingId)
+        .single();
+
+      if (readError) throw readError;
+
+      const updatePayload = {
+        ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
+        description: current.description || uploaded.description || '',
+        manufacturer: current.manufacturer || uploaded.manufacturer || '',
+        notes: [current.notes, uploaded.notes].filter(Boolean).join(' | '),
+        uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
+      };
+
+      const { error: updateError } = await supabase
+        .from('parts')
+        .update(updatePayload)
+        .eq('id', existingId);
+
+      if (updateError) throw updateError;
+    }
+
+    window.mergeExact = async function(index) {
+      const item = state.review.exactDuplicates[index];
+      if (!item) return;
+      try {
+        await mergeExisting(item.existing.id, item.uploaded);
+        item.skip = true;
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, 'Exact duplicate merged into existing part.', 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+      }
     };
 
-    function wireEvents() {
-      document.getElementById("loginBtn").addEventListener("click", login);
-      document.getElementById("signupBtn").addEventListener("click", signup);
-      document.getElementById("logoutBtn").addEventListener("click", logout);
-      document.getElementById("scanUploadBtn").addEventListener("click", scanUpload);
-      document.getElementById("applyReviewBtn").addEventListener("click", applyReview);
-      document.getElementById("refreshBtn").addEventListener("click", loadParts);
-      document.getElementById("searchInput").addEventListener("input", () => {
-        renderStats();
-        renderTable();
-      });
-      document.getElementById("sortField").addEventListener("change", loadParts);
-      document.getElementById("sortDirection").addEventListener("change", loadParts);
+    window.skipExact = function(index) {
+      const item = state.review.exactDuplicates[index];
+      if (!item) return;
+      item.skip = true;
+      renderReview();
+    };
+
+    window.mergePossible = async function(index) {
+      const item = state.review.possibleDuplicates[index];
+      if (!item) return;
+      try {
+        await mergeExisting(item.existing.id, item.uploaded);
+        item.skip = true;
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, 'Possible duplicate merged into existing part.', 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+      }
+    };
+
+    window.keepSeparate = function(index) {
+      const item = state.review.possibleDuplicates[index];
+      if (!item) return;
+      state.review.newParts.push({ ...item.uploaded, skip: false });
+      item.skip = true;
+      renderReview();
+    };
+
+    window.skipPossible = function(index) {
+      const item = state.review.possibleDuplicates[index];
+      if (!item) return;
+      item.skip = true;
+      renderReview();
+    };
+
+    async function importApproved() {
+      try {
+        const payload = state.review.newParts.filter(x => !x.skip).map(item => ({
+          part_number_original: item.part_number_original,
+          part_number_normalized: item.part_number_normalized,
+          description: item.description,
+          manufacturer: item.manufacturer,
+          ro_count: Number(item.ro_count || 0),
+          notes: item.notes,
+          uploaded_by: state.user?.id || null
+        }));
+
+        if (!payload.length) {
+          showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
+          return;
+        }
+
+        const { error } = await supabase.from('parts').insert(payload);
+        if (error) throw error;
+
+        state.review.newParts.forEach(item => { item.skip = true; });
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, `${payload.length} new parts imported.`, 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
+      }
     }
 
-    async function boot() {
-      if (!initSupabase()) return;
-      wireEvents();
-      await handleSession();
-      supabaseClient.auth.onAuthStateChange(async () => {
-        await handleSession();
+    function downloadCsv(filename, rows) {
+      const headers = ['part_number_original', 'description', 'manufacturer', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
+      const csv = [headers.join(',')].concat(
+        rows.map(row => headers.map(key => {
+          const value = String(row[key] ?? '');
+          return `"${value.replace(/"/g, '""')}"`;
+        }).join(','))
+      ).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function login() {
+      try {
+        showMessage(el.authMessage, '', 'success');
+        const email = el.email.value.trim();
+        const password = el.password.value;
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        state.user = data.user;
+        await afterAuth();
+      } catch (err) {
+        showMessage(el.authMessage, `Login failed: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    async function signup() {
+      try {
+        showMessage(el.authMessage, '', 'success');
+        const email = el.email.value.trim();
+        const password = el.password.value;
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        showMessage(el.authMessage, 'Account created. If email confirmation is enabled in Supabase, confirm your email before logging in.', 'success');
+      } catch (err) {
+        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      state.user = null;
+      state.allParts = [];
+      state.filteredParts = [];
+      resetReview();
+      el.authCard.classList.remove('hidden');
+      el.appShell.classList.add('hidden');
+      showMessage(el.uploadMessage, '', 'success');
+      showMessage(el.authMessage, 'Signed out.', 'success');
+    }
+
+    async function afterAuth() {
+      el.authCard.classList.add('hidden');
+      el.appShell.classList.remove('hidden');
+      el.userLine.textContent = `Signed in as ${state.user.email}`;
+      await loadParts();
+      updateStats();
+    }
+
+    async function init() {
+      if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+        showMessage(el.authMessage, 'Add your Supabase URL and anon key in this file before logging in.', 'warning');
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        state.user = session.user;
+        await afterAuth();
+      }
+
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          state.user = session.user;
+          await afterAuth();
+        }
       });
     }
 
-    boot();
+    el.loginBtn.addEventListener('click', login);
+    el.signupBtn.addEventListener('click', signup);
+    el.logoutBtn.addEventListener('click', logout);
+    el.refreshBtn.addEventListener('click', loadParts);
+    el.scanUploadBtn.addEventListener('click', scanUpload);
+    el.importApprovedBtn.addEventListener('click', importApproved);
+    el.searchInput.addEventListener('input', applyFilters);
+    el.sortBy.addEventListener('change', applyFilters);
+    el.sortDirection.addEventListener('change', applyFilters);
+    el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
+
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const field = th.getAttribute('data-sort');
+        if (el.sortBy.value === field) {
+          el.sortDirection.value = el.sortDirection.value === 'asc' ? 'desc' : 'asc';
+        } else {
+          el.sortBy.value = field;
+        }
+        applyFilters();
+      });
+    });
+
+    init();
   </script>
 </body>
 </html>
