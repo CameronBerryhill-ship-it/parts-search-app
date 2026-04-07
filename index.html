@@ -65,7 +65,7 @@
     button.danger { background: var(--danger); color: white; }
     .muted { color: var(--muted); }
     .hidden { display: none !important; }
-    .toolbar { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr 1.2fr 1fr 1fr; gap: 12px; align-items: end; }
+    .toolbar { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1fr; gap: 12px; align-items: end; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     .stat {
       background: #0b1220;
@@ -303,12 +303,6 @@
             <input id="searchInput" placeholder="Type a part number, description, manufacturer, or truck" />
           </div>
           <div>
-            <label>Manufacturer</label>
-            <select id="manufacturerFilter">
-              <option value="">All Manufacturers</option>
-            </select>
-          </div>
-          <div>
             <label>Truck / Model</label>
             <select id="vehicleFilter">
               <option value="">All Trucks / Models</option>
@@ -471,7 +465,6 @@
       mergeAllExactBtn: document.getElementById('mergeAllExactBtn'),
       mergeAllPossibleBtn: document.getElementById('mergeAllPossibleBtn'),
       searchInput: document.getElementById('searchInput'),
-      manufacturerFilter: document.getElementById('manufacturerFilter'),
       vehicleFilter: document.getElementById('vehicleFilter'),
       sortBy: document.getElementById('sortBy'),
       sortDirection: document.getElementById('sortDirection'),
@@ -730,9 +723,18 @@
     async function detectPartLinksTable() {
       try {
         const { error } = await state.supabase.from('part_links').select('id').limit(1);
-        state.hasPartLinksTable = !error;
-      } catch (_) {
+        if (error) {
+          console.error('part_links check failed:', error);
+          state.hasPartLinksTable = false;
+          showMessage(el.relatedMessage, `part_links check failed: ${escapeHtml(error.message || String(error))}`, 'error');
+          return;
+        }
+        state.hasPartLinksTable = true;
+        showMessage(el.relatedMessage, 'part_links table detected.', 'success');
+      } catch (err) {
+        console.error('detectPartLinksTable exception:', err);
         state.hasPartLinksTable = false;
+        showMessage(el.relatedMessage, `part_links check failed: ${escapeHtml(err.message || String(err))}`, 'error');
       }
     }
 
@@ -824,35 +826,15 @@
       if (vehicles.includes(current)) el.vehicleFilter.value = current;
     }
 
-    function populateManufacturerFilter() {
-      const manufacturers = [...new Set(
-        state.allParts
-          .map(part => String(part.manufacturer || '').trim())
-          .filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b));
-
-      const current = el.manufacturerFilter.value;
-
-      el.manufacturerFilter.innerHTML = '<option value="">All Manufacturers</option>' +
-        manufacturers.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-
-      if (manufacturers.includes(current)) el.manufacturerFilter.value = current;
-    }
-
     function applyFilters() {
       const q = el.searchInput.value.trim().toLowerCase();
       const sortBy = el.sortBy.value;
       const direction = el.sortDirection.value;
       const selectedVehicle = el.vehicleFilter.value;
-      const selectedManufacturer = el.manufacturerFilter.value;
       let parts = [...state.allParts];
 
       if (selectedVehicle) {
         parts = parts.filter(part => normalizeVehicleDisplay(part) === selectedVehicle);
-      }
-
-      if (selectedManufacturer) {
-        parts = parts.filter(part => String(part.manufacturer || '').trim() === selectedManufacturer);
       }
 
       if (q) {
@@ -925,7 +907,6 @@
       state.allParts = await fetchAllParts('ro_count', false);
       await loadRelatedPartsMap();
       populateVehicleFilter();
-      populateManufacturerFilter();
       applyFilters();
       renderRelatedList();
     }
@@ -1486,19 +1467,23 @@
 
 
     async function createPartLink(selectedId, targetId, relationNote = '') {
-      if (!state.hasPartLinksTable) throw new Error('part_links table is not set up yet. Run the SQL setup script first.');
+      await detectPartLinksTable();
+      if (!state.hasPartLinksTable) throw new Error('part_links table is not available yet. Check the message above for the exact Supabase error.');
       if (!selectedId || !targetId) throw new Error('Choose both parts before linking.');
       if (selectedId === targetId) throw new Error('A part cannot be linked to itself.');
 
       const leftId = [selectedId, targetId].sort()[0];
       const rightId = [selectedId, targetId].sort()[1];
-      const { error } = await state.supabase.from('part_links').insert([{
+      const { data, error } = await state.supabase.from('part_links').insert([{
         part_id: leftId,
         related_part_id: rightId,
-        relation_note: relationNote.trim(),
-        created_by: state.user?.id || null
-      }]);
-      if (error) throw error;
+        relation_note: relationNote.trim()
+      }]).select();
+      if (error) {
+        console.error('Link insert failed:', error);
+        throw error;
+      }
+      return data;
     }
 
     async function linkSelectedParts() {
@@ -1589,9 +1574,14 @@
         if (error) throw error;
 
         const insertedPart = insertedParts?.[0];
-        if (insertedPart) {
-          state.allParts.push(insertedPart);
-          await autoLinkInsertedPart(insertedPart, relatedParts, 'Added from manual part form');
+        if (insertedPart && state.hasPartLinksTable && relatedParts) {
+          const requested = relatedParts.split(',').map(x => x.trim()).filter(Boolean);
+          for (const relatedPartNumber of requested) {
+            const matches = state.allParts.filter(part => normalizePartNumber(part.part_number_original) === normalizePartNumber(relatedPartNumber));
+            if (matches.length === 1) {
+              try { await createPartLink(insertedPart.id, matches[0].id, 'Added from manual part form'); } catch (_) {}
+            }
+          }
         }
 
         await loadParts();
@@ -1604,37 +1594,25 @@
 
     async function importApproved() {
       try {
-        const approvedItems = state.review.newParts.filter(x => !x.skip);
-        const payload = approvedItems.map(item => buildStoredRecord(item));
+        const payload = state.review.newParts
+          .filter(x => !x.skip)
+          .map(item => buildStoredRecord(item));
 
         if (!payload.length) return showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
 
-        const chunkSize = 500;
+        const chunkSize = 1000;
         for (let i = 0; i < payload.length; i += chunkSize) {
-          const payloadChunk = payload.slice(i, i + chunkSize);
-          const sourceChunk = approvedItems.slice(i, i + chunkSize);
-
-          const { data: insertedParts, error } = await state.supabase
-            .from('parts')
-            .insert(payloadChunk)
-            .select('*');
-
+          const chunk = payload.slice(i, i + chunkSize);
+          const { error } = await state.supabase.from('parts').insert(chunk);
           if (error) throw error;
-
-          showMessage(el.uploadMessage, `Importing... ${Math.min(i + payloadChunk.length, payload.length).toLocaleString()} / ${payload.length.toLocaleString()}`, 'warning');
-
-          if (insertedParts?.length) {
-            state.allParts.push(...insertedParts);
-            await autoLinkImportedBatch(insertedParts, sourceChunk, 'Auto-linked from approved import');
-          }
-
+          showMessage(el.uploadMessage, `Importing... ${Math.min(i + chunk.length, payload.length).toLocaleString()} / ${payload.length.toLocaleString()}`, 'warning');
           await new Promise(resolve => setTimeout(resolve, 0));
         }
 
         state.review.newParts.forEach(item => item.skip = true);
         renderReview();
         await loadParts();
-        showMessage(el.uploadMessage, `${payload.length.toLocaleString()} new parts imported and auto-linked where possible.`, 'success');
+        showMessage(el.uploadMessage, `${payload.length.toLocaleString()} new parts imported.`, 'success');
       } catch (err) {
         showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
       }
@@ -1669,6 +1647,7 @@
       showMessage(el.authMessage, '', 'success');
       try {
         await detectVehicleColumn();
+        await detectPartLinksTable();
         await loadParts();
         if (!state.hasVehicleColumn) {
           showMessage(el.bootMessage, 'App loaded. Vehicle column not found in database yet. Truck / model will still be saved in notes until you add the vehicle column.', 'warning');
@@ -1769,6 +1748,7 @@
         el.refreshBtn.addEventListener('click', async () => {
           try {
             await detectVehicleColumn();
+            await detectPartLinksTable();
             await loadParts();
             showMessage(el.uploadMessage, 'Refreshed.', 'success');
           } catch (err) {
@@ -1783,7 +1763,6 @@
         el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
         el.searchInput.addEventListener('input', applyFilters);
-        el.manufacturerFilter.addEventListener('change', applyFilters);
         el.vehicleFilter.addEventListener('change', applyFilters);
         el.sortBy.addEventListener('change', applyFilters);
         el.sortDirection.addEventListener('change', applyFilters);
