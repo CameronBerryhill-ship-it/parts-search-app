@@ -1,930 +1,695 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#08111f" />
-  <title>Internal Parts Search – Shared Top Parts Version</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parts Database</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    :root{
-      --bg:#08111f; --bg2:#0f172a; --panel:#111827; --line:#2b3a53;
-      --text:#e5e7eb; --muted:#94a3b8; --accent:#22c55e; --accent2:#38bdf8; --warn:#f59e0b; --danger:#ef4444;
-      --radius:18px; --shadow:0 12px 28px rgba(0,0,0,.28);
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --accent: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
     }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{margin:0;padding:0;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font-family:Arial,Helvetica,sans-serif}
-    body{min-height:100vh}
-    .topbar{position:sticky;top:0;z-index:50;background:rgba(8,17,31,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(148,163,184,.12)}
-    .topbar-inner{max-width:1500px;margin:0 auto;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-    .brand strong{display:block;font-size:18px}
-    .brand span{font-size:12px;color:var(--muted)}
-    .top-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .app{max-width:1500px;margin:0 auto;padding:14px 12px 80px}
-    .hero,.card,.modal-card{background:rgba(17,24,39,.94);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .hero{padding:16px;margin:0 0 14px}
-    .card{padding:14px}
-    h1,h2,h3{margin:0}
-    h1{font-size:30px;line-height:1.1}
-    .sub{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.45}
-    .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-    .pill{padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(56,189,248,.1);color:#bae6fd;border:1px solid rgba(56,189,248,.22)}
-    .layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
-    @media (max-width:1100px){.layout{grid-template-columns:1fr}}
-    .section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
-    .section-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
-    label{display:block;margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.35px;color:var(--muted)}
-    input,select,textarea,button{
-      width:100%;border-radius:12px;border:1px solid var(--line);background:#0b1220;color:var(--text);padding:13px 12px;font-size:16px;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #0b1120;
+      color: var(--text);
     }
-    button{cursor:pointer;font-weight:700;min-height:46px}
-    textarea{min-height:88px;resize:vertical}
-    input:focus,select:focus,textarea:focus{outline:2px solid rgba(34,197,94,.28);border-color:var(--accent)}
-    .btn-primary{background:linear-gradient(180deg,#22c55e,#16a34a);border:none;color:#fff}
-    .btn-secondary{background:linear-gradient(180deg,#0ea5e9,#0284c7);border:none;color:#fff}
-    .btn-muted{background:#1e293b}
-    .btn-danger{background:linear-gradient(180deg,#ef4444,#dc2626);border:none;color:#fff}
-    .grid{display:grid;gap:10px;grid-template-columns:1.8fr repeat(5,1fr)}
-    @media (max-width:1180px){.grid{grid-template-columns:1fr 1fr 1fr}}
-    @media (max-width:640px){.grid{grid-template-columns:1fr}}
-    .admin-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
-    @media (max-width:1180px){.admin-grid{grid-template-columns:1fr 1fr 1fr}}
-    @media (max-width:640px){.admin-grid{grid-template-columns:1fr}}
-    .quick-actions{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:12px 0}
-    @media (max-width:1100px){.quick-actions{grid-template-columns:repeat(4,minmax(0,1fr))}}
-    @media (max-width:620px){.quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-    @media (max-width:780px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .stat{background:#0b1220;border:1px solid var(--line);border-radius:14px;padding:12px}
-    .num{font-size:24px;font-weight:800}
-    .lbl{font-size:12px;color:var(--muted);margin-top:4px}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-    .tab{width:auto;padding:10px 12px}
-    .tab.active{outline:2px solid rgba(14,165,233,.28);border-color:var(--accent2)}
-    .parts{display:grid;gap:12px}
-    .top-parts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-    @media (max-width:980px){.top-parts{grid-template-columns:1fr 1fr}}
-    @media (max-width:620px){.top-parts{grid-template-columns:1fr}}
-    .part-card,.top-card{background:#0b1220;border:1px solid #223047;border-radius:16px;padding:12px}
-    .part-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
-    .part-title{font-size:17px;font-weight:800;line-height:1.2}
-    .part-sub{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.35}
-    .tag{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.12);color:#bbf7d0}
-    .tag.warn{border-color:rgba(245,158,11,.22);background:rgba(245,158,11,.12);color:#fde68a}
-    .tag.danger{border-color:rgba(239,68,68,.22);background:rgba(239,68,68,.12);color:#fecaca}
-    .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-top:10px}
-    @media (max-width:580px){.detail-grid{grid-template-columns:1fr}}
-    .detail{background:rgba(255,255,255,.02);border:1px solid rgba(148,163,184,.10);border-radius:12px;padding:9px 10px}
-    .k{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.35px;margin-bottom:4px}
-    .v{font-size:14px;line-height:1.35;word-break:break-word}
-    .actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
-    @media (max-width:760px){.actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .hint,.status-box{margin-top:12px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;background:rgba(245,158,11,.08);color:#fde68a;border:1px solid rgba(245,158,11,.18)}
-    .status-box.ok{background:rgba(34,197,94,.08); color:#bbf7d0; border-color:rgba(34,197,94,.18)}
-    .status-box.info{background:rgba(56,189,248,.08); color:#bae6fd; border-color:rgba(56,189,248,.18)}
-    .toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
-    @media (max-width:700px){.toolbar{grid-template-columns:1fr 1fr}}
-    .empty{text-align:center;color:var(--muted);padding:24px 10px}
-    .admin-panel{display:none}
-    .admin-panel.show{display:block}
-    .thumb-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .thumb{width:78px;height:78px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
-    .copy-status{font-size:12px;color:#86efac;margin-top:8px;min-height:18px}
-    .modal{position:fixed;inset:0;background:rgba(2,6,23,.75);display:none;align-items:center;justify-content:center;z-index:100}
-    .modal.show{display:flex}
-    .modal-card{width:min(760px, calc(100vw - 24px));padding:16px}
-    .config-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:680px){.config-grid{grid-template-columns:1fr}}
-    .small{font-size:12px;color:var(--muted)}
+    .wrap {
+      max-width: 1250px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .row > * { flex: 1 1 220px; }
+    input, button, select, textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 14px;
+    }
+    input[type="file"] { padding: 8px; }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.primary { background: var(--accent); color: #04110a; border: none; }
+    button.warn { background: var(--warn); color: #1f1400; border: none; }
+    button.danger { background: var(--danger); color: white; border: none; }
+    button.ghost { background: transparent; }
+    .hidden { display: none !important; }
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #0f766e;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .pill.warn { background: #b45309; }
+    .pill.danger { background: #b91c1c; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .stat .num { font-size: 28px; font-weight: 800; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th {
+      cursor: pointer;
+      background: #0b1220;
+      position: sticky;
+      top: 0;
+    }
+    .review-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: var(--panel-2);
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .small { font-size: 12px; color: var(--muted); }
+    .message {
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+      background: #132238;
+      border: 1px solid #29486f;
+    }
+    @media (max-width: 800px) {
+      .split { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <strong>Internal Parts Search</strong>
-        <span>Shared top parts version • APP + Tomy</span>
-      </div>
-      <div class="top-actions">
-        <button class="btn-muted" id="advisorModeBtn" type="button">Advisor Mode</button>
-        <button class="btn-secondary" id="adminModeBtn" type="button">Admin Mode</button>
-        <button class="btn-secondary" id="settingsBtn" type="button">Shared Setup</button>
-        <button class="btn-secondary" id="authBtn" type="button">Admin Login</button>
+  <div class="wrap">
+    <div class="card">
+      <h1>Shared Parts Database</h1>
+      <p>Logged-in users can upload parts, search, sort, and review duplicate warnings without changing original part numbers.</p>
+      <div class="message">
+        <strong>Before using:</strong> put your Supabase URL and anon key in the config section inside this file, then run the SQL shown below in Supabase.
       </div>
     </div>
-  </div>
 
-  <div class="app">
-    <div class="hero">
-      <h1>Advisor Shared Parts Search</h1>
-      <div class="sub">Search-first shared parts reference. Top used parts are driven by RO count from your parts file, highest to lowest. Admins can upload parts lists in JSON or CSV.</div>
-      <div class="pill-row">
-        <span class="pill">APP: Volvo, Freightliner, Peterbuilt, Kenworth, Autocar, Bytec, International</span>
-        <span class="pill">Tomy Trailer: Hyundai, Great Dane, Wabash, Dimitr, Stght, Vanguard, Corbl</span>
-      </div>
-      <div class="status-box info" id="connectionStatus">Not connected yet. Open Shared Setup and add your Supabase project info.</div>
-      <div class="status-box info" id="authStatus">Admin not signed in.</div>
+    <div class="card" id="setupCard">
+      <h2>Supabase SQL</h2>
+      <textarea rows="12" readonly>
+create table if not exists parts (
+  id uuid primary key default gen_random_uuid(),
+  part_number_original text not null,
+  part_number_normalized text not null,
+  description text,
+  manufacturer text,
+  ro_count integer default 0,
+  notes text,
+  uploaded_by uuid,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_parts_original on parts (part_number_original);
+create index if not exists idx_parts_normalized on parts (part_number_normalized);
+
+alter table parts enable row level security;
+
+create policy "authenticated can read parts"
+on parts for select
+using (auth.role() = 'authenticated');
+
+create policy "authenticated can insert parts"
+on parts for insert
+with check (auth.role() = 'authenticated');
+
+create policy "authenticated can update parts"
+on parts for update
+using (auth.role() = 'authenticated');
+      </textarea>
     </div>
 
-    <div class="layout">
+    <div class="card" id="authCard">
+      <h2>Login</h2>
+      <div class="row">
+        <div><input id="email" type="email" placeholder="Email" /></div>
+        <div><input id="password" type="password" placeholder="Password" /></div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div><button id="loginBtn" class="primary">Login</button></div>
+        <div><button id="signupBtn" class="ghost">Create Account</button></div>
+        <div><button id="logoutBtn" class="danger hidden">Logout</button></div>
+      </div>
+      <div id="authMessage" class="message hidden"></div>
+    </div>
+
+    <div id="app" class="hidden">
       <div class="card">
-        <div class="section-head">
+        <div class="row" style="align-items:end;">
           <div>
-            <h2>Quick Search</h2>
-            <p>Fast shared lookup for all advisors.</p>
+            <h2 style="margin-bottom:8px;">Upload Parts</h2>
+            <p class="small">Accepts CSV, XLSX, and XLS. Keep your original part numbers exactly as entered.</p>
           </div>
+          <div><input id="partsFile" type="file" accept=".csv,.xlsx,.xls" /></div>
+          <div><button id="scanUploadBtn" class="primary">Scan Upload</button></div>
         </div>
+        <div id="uploadMessage" class="message hidden"></div>
+      </div>
 
-        <div class="tabs">
-          <button type="button" class="btn-muted tab active" data-tab="all">All</button>
-          <button type="button" class="btn-muted tab" data-tab="APP">APP</button>
-          <button type="button" class="btn-muted tab" data-tab="Tomy Trailer">Tomy Trailer</button>
-          <button type="button" class="btn-muted tab" data-tab="top">Top Used</button>
+      <div class="card hidden" id="reviewCard">
+        <h2>Upload Review</h2>
+        <div class="stats" id="reviewStats"></div>
+        <div style="margin-top:16px;">
+          <button id="applyReviewBtn" class="primary">Apply Selected Actions</button>
         </div>
-
-        <div class="quick-actions">
-          <button type="button" class="btn-muted" id="showFreightliner">Freightliner</button>
-          <button type="button" class="btn-muted" id="showVolvo">Volvo</button>
-          <button type="button" class="btn-muted" id="showKenworth">Kenworth</button>
-          <button type="button" class="btn-muted" id="showInternational">International</button>
-          <button type="button" class="btn-muted" id="showHyundai">Hyundai</button>
-          <button type="button" class="btn-muted" id="showWabash">Wabash</button>
-          <button type="button" class="btn-muted" id="clearBrandQuick">Clear Brand</button>
-        </div>
-
-        <div class="grid">
-          <div>
-            <label for="searchInput">Search</label>
-            <input id="searchInput" placeholder="Search part number, description, cross ref, keywords, notes..." />
-          </div>
-          <div>
-            <label for="filterBrand">Brand</label>
-            <select id="filterBrand"><option value="">All Brands</option></select>
-          </div>
-          <div>
-            <label for="filterCategory">Category</label>
-            <input id="filterCategory" placeholder="Filter category" />
-          </div>
-          <div>
-            <label for="filterStatus">Status</label>
-            <select id="filterStatus">
-              <option value="">All Statuses</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="On Order">On Order</option>
-              <option value="Out of Stock">Out of Stock</option>
-            </select>
-          </div>
-          <div>
-            <label for="sortBy">Sort By</label>
-            <select id="sortBy">
-              <option value="roDesc">Most Used</option>
-              <option value="updated">Recently Updated</option>
-              <option value="number">Part Number</option>
-              <option value="name">Description</option>
-              <option value="brand">Brand</option>
-              <option value="costDesc">Highest Price</option>
-            </select>
-          </div>
-          <div>
-            <label for="photoOnly">Photos</label>
-            <select id="photoOnly">
-              <option value="">All Parts</option>
-              <option value="withPhotos">With Photos</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="copy-status" id="copyStatus"></div>
+        <div id="reviewList" style="margin-top:16px;"></div>
       </div>
 
       <div class="card">
-        <div class="section-head">
+        <h2>Search and Sort</h2>
+        <div class="row">
+          <div><input id="searchInput" placeholder="Search part number, description, manufacturer, notes" /></div>
           <div>
-            <h2>Reference Dashboard</h2>
-            <p>Parts reference, not inventory.</p>
+            <select id="sortField">
+              <option value="ro_count">RO Count</option>
+              <option value="part_number_original">Part Number</option>
+              <option value="description">Description</option>
+              <option value="manufacturer">Manufacturer</option>
+              <option value="created_at">Date Added</option>
+              <option value="updated_at">Updated</option>
+            </select>
           </div>
-        </div>
-
-        <div class="stats">
-          <div class="stat"><div class="num" id="totalParts">0</div><div class="lbl">Total Parts</div></div>
-          <div class="stat"><div class="num" id="appCount">0</div><div class="lbl">APP</div></div>
-          <div class="stat"><div class="num" id="trailerCount">0</div><div class="lbl">Tomy Trailer</div></div>
-          <div class="stat"><div class="num" id="topRoCount">0</div><div class="lbl">Highest RO Count</div></div>
-          <div class="stat"><div class="num" id="brandCount">0</div><div class="lbl">Brands Used</div></div>
-        </div>
-
-        <div class="toolbar">
-          <button type="button" class="btn-secondary" id="exportJsonBtn">Export JSON</button>
-          <button type="button" class="btn-secondary" id="exportCsvBtn">Export CSV</button>
-          <button type="button" class="btn-muted" id="loadSampleBtn">Load Sample</button>
-          <button type="button" class="btn-muted" id="loadTopSeedBtn">Load Top Parts Seed</button>
-        </div>
-
-        <div class="hint">
-          Upload parts lists from JSON or CSV in Admin Mode. Imports merge by part number and keep the highest RO count.
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:14px;">
-      <div class="section-head">
-        <div>
-          <h2>Top Used Parts</h2>
-          <p>Highest to lowest by RO count.</p>
-        </div>
-      </div>
-      <div id="topPartsList" class="top-parts"></div>
-      <div id="topEmpty" class="empty" style="display:none">No top parts yet.</div>
-    </div>
-
-    <div class="card admin-panel" id="adminPanel" style="margin-top:14px;">
-      <div class="section-head">
-        <div>
-          <h2>Admin Tools</h2>
-          <p>Only visible after approved admin login.</p>
+          <div>
+            <select id="sortDirection">
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div><button id="refreshBtn">Refresh</button></div>
         </div>
       </div>
 
-      <form id="partForm">
-        <div class="admin-grid">
-          <div><label for="group">Section</label><select id="group" required><option value="APP">APP</option><option value="Tomy Trailer">Tomy Trailer</option></select></div>
-          <div><label for="brand">Brand</label><select id="brand" required></select></div>
-          <div><label for="status">Status</label><select id="status"><option value="In Stock">In Stock</option><option value="Low Stock">Low Stock</option><option value="On Order">On Order</option><option value="Out of Stock">Out of Stock</option></select></div>
-          <div><label for="partNumber">Part Number</label><input id="partNumber" placeholder="Enter part number" required /></div>
-          <div><label for="partName">Description</label><input id="partName" placeholder="Enter description" required /></div>
-          <div><label for="category">Category</label><input id="category" placeholder="Brake, Electrical, Body..." /></div>
-          <div><label for="cost">Price / Cost</label><input id="cost" type="number" min="0" step="0.01" placeholder="0.00" /></div>
-          <div><label for="avgCharge">Average Charge</label><input id="avgCharge" type="number" min="0" step="0.01" placeholder="0.00" /></div>
-          <div><label for="roCount">RO Count</label><input id="roCount" type="number" min="0" step="1" value="0" /></div>
-          <div><label for="vendor">Vendor</label><input id="vendor" placeholder="Dealer / Supplier" /></div>
-          <div><label for="crossRef">Cross Reference</label><input id="crossRef" placeholder="Alternate number" /></div>
-          <div><label for="fits">Fits / Application</label><input id="fits" placeholder="Model, trailer type, verify by VIN..." /></div>
-          <div><label for="keywords">Keywords</label><input id="keywords" placeholder="hub cap, wheel seal, 7-way..." /></div>
-          <div><label for="location">Location / Bin</label><input id="location" placeholder="Optional reference only" /></div>
-          <div><label for="photoInput">Part Photos</label><input id="photoInput" type="file" accept="image/*" multiple /></div>
-        </div>
-
-        <div style="margin-top:10px">
-          <label for="notes">Notes</label>
-          <textarea id="notes" placeholder="Extra details, sourcing notes, common use..."></textarea>
-        </div>
-
-        <div class="thumb-row" id="photoPreview"></div>
-
-        <div class="toolbar">
-          <button type="submit" class="btn-primary" id="saveBtn">Add Part</button>
-          <button type="button" class="btn-secondary" id="updateBtn" style="display:none;">Update Part</button>
-          <button type="button" class="btn-muted" id="clearBtn">Clear Form</button>
-          <button type="button" class="btn-muted" id="importBtn">Upload Parts List</button>
-        </div>
-        <input id="importFile" type="file" accept=".json,.csv" style="display:none" />
-      </form>
-    </div>
-
-    <div class="card" style="margin-top:14px;">
-      <div class="section-head">
-        <div>
-          <h2>Parts Results</h2>
-          <p>Sorted by RO count highest to lowest by default.</p>
-        </div>
+      <div class="card">
+        <div class="stats" id="dashboardStats"></div>
       </div>
-      <div id="partsList" class="parts"></div>
-      <div id="emptyState" class="empty" style="display:none">No parts found. Change your search or filters.</div>
-    </div>
-  </div>
 
-  <div class="modal" id="settingsModal">
-    <div class="modal-card">
-      <div class="section-head"><div><h2>Shared Setup</h2><p>Paste your shared Supabase project info here.</p></div></div>
-      <div class="config-grid">
-        <div><label for="supabaseUrl">Supabase URL</label><input id="supabaseUrl" placeholder="https://YOURPROJECT.supabase.co" /></div>
-        <div><label for="supabaseAnonKey">Supabase Publishable Key</label><input id="supabaseAnonKey" placeholder="Paste publishable key" /></div>
-        <div><label for="tableName">Table Name</label><input id="tableName" value="parts_catalog" /></div>
+      <div class="card">
+        <h2>Parts</h2>
+        <div id="tableWrap"></div>
       </div>
-      <div class="small" style="margin-top:8px">This saves locally in this app on this device.</div>
-      <div class="toolbar">
-        <button class="btn-primary" id="saveSettingsBtn" type="button">Save & Connect</button>
-        <button class="btn-muted" id="closeSettingsBtn" type="button">Close</button>
-        <button class="btn-danger" id="clearSettingsBtn" type="button">Clear Setup</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="authModal">
-    <div class="modal-card">
-      <div class="section-head"><div><h2>Admin Login</h2><p>Use an approved admin email to edit the shared catalog.</p></div></div>
-      <div class="config-grid">
-        <div><label for="loginEmail">Email</label><input id="loginEmail" type="email" placeholder="you@company.com" /></div>
-        <div><label for="loginPassword">Password</label><input id="loginPassword" type="password" placeholder="Password" /></div>
-      </div>
-      <div class="toolbar">
-        <button class="btn-primary" id="signInBtn" type="button">Sign In</button>
-        <button class="btn-secondary" id="magicLinkBtn" type="button">Send Magic Link</button>
-        <button class="btn-muted" id="signOutBtn" type="button">Sign Out</button>
-        <button class="btn-muted" id="closeAuthBtn" type="button">Close</button>
-      </div>
-      <div class="small" style="margin-top:8px">Admins need to exist in Supabase Auth and be in admin_allowlist.</div>
     </div>
   </div>
 
   <script>
-    const SETTINGS_KEY = "advisor_shared_parts_search_top_parts_v1";
-    const LOCAL_FALLBACK_KEY = "advisor_shared_parts_local_top_parts_v1";
-    const DEFAULT_SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
-    const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
-    const brands = {
-      "APP": ["Volvo","Freightliner","Peterbuilt","Kenworth","Autocar","Bytec","International"],
-      "Tomy Trailer": ["Hyundai","Great Dane","Wabash","Dimitr","Stght","Vanguard","Corbl"]
-    };
+    const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
+    const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
 
-    let parts = [];
-    let editId = null;
-    let currentTab = "all";
-    let pendingPhotos = [];
-    let supabase = null;
-    let settings = loadSettings();
+    let supabaseClient = null;
     let currentUser = null;
-    let isAdmin = false;
-    let realtimeSubscribed = false;
+    let partsCache = [];
+    let pendingReview = [];
 
-    if(!settings.supabaseUrl) settings.supabaseUrl = DEFAULT_SUPABASE_URL;
-    if(!settings.supabaseAnonKey) settings.supabaseAnonKey = DEFAULT_SUPABASE_ANON_KEY;
-    if(!settings.tableName) settings.tableName = "parts_catalog";
-
-    const $ = id => document.getElementById(id);
-
-    function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-    function safe(v){ return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
-    function money(v){ const n = Number(v || 0); return n ? `$${n.toFixed(2)}` : "—"; }
-    function statusClass(status){ if(status === "Out of Stock") return "danger"; if(status === "Low Stock") return "warn"; return ""; }
-
-    function loadSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }catch(e){ return {}; } }
-    function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
-    function saveLocalFallback(){ localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(parts)); }
-    function loadLocalFallback(){ try{ const raw = localStorage.getItem(LOCAL_FALLBACK_KEY); if(raw){ const parsed = JSON.parse(raw); if(Array.isArray(parsed)) parts = parsed; } }catch(e){} }
-
-    function setConnectionStatus(text, type="info"){ const el = $("connectionStatus"); el.textContent = text; el.className = "status-box " + type; }
-    function setAuthStatus(text, type="info"){ const el = $("authStatus"); el.textContent = text; el.className = "status-box " + type; }
-
-    function setAdminUI(){
-      $("adminPanel").classList.toggle("show", isAdmin);
-      $("advisorModeBtn").className = !isAdmin ? "btn-primary" : "btn-muted";
-      $("adminModeBtn").className = isAdmin ? "btn-primary" : "btn-secondary";
-      $("authBtn").textContent = currentUser ? `Admin: ${currentUser.email}` : "Admin Login";
-      render();
-    }
-
-    function populateSettingsForm(){ $("supabaseUrl").value = settings.supabaseUrl || ""; $("supabaseAnonKey").value = settings.supabaseAnonKey || ""; $("tableName").value = settings.tableName || "parts_catalog"; }
-
-    function updateBrandOptions(){
-      const group = $("group").value;
-      $("brand").innerHTML = (brands[group] || []).map(b => `<option value="${b}">${b}</option>`).join("");
-    }
-    function populateFilterBrands(){
-      const all = [...new Set(Object.values(brands).flat())].sort((a,b) => a.localeCompare(b));
-      $("filterBrand").innerHTML = `<option value="">All Brands</option>` + all.map(b => `<option value="${b}">${b}</option>`).join("");
-    }
-
-    function showCopyStatus(msg){ $("copyStatus").textContent = msg; setTimeout(() => { if($("copyStatus").textContent === msg) $("copyStatus").textContent = ""; }, 1800); }
-
-    async function copyText(text, msg){
-      try{ await navigator.clipboard.writeText(text); }
-      catch(err){
-        const ta = document.createElement("textarea");
-        ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    function initSupabase() {
+      if (!SUPABASE_URL || SUPABASE_URL.includes("PASTE_YOUR")) {
+        showMessage("authMessage", "Paste your Supabase URL and anon key into the config section in this file.");
+        return false;
       }
-      showCopyStatus(msg);
-    }
-
-    function refreshPhotoPreview(){ $("photoPreview").innerHTML = pendingPhotos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join(""); }
-
-    function readFilesAsDataURLs(files){
-      return Promise.all([...files].map(file => new Promise((resolve,reject)=>{
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      })));
-    }
-
-    function normalizeGroup(raw){
-      const txt = String(raw.group || raw.section || raw.program || "").trim().toLowerCase();
-      if(txt.includes("tomy") || txt.includes("trailer")) return "Tomy Trailer";
-      return "APP";
-    }
-
-    function normalizeBrand(raw){
-      const val = String(raw.brand || raw.make || raw.manufacturer || "").trim();
-      if(!val) return "";
-      return val;
-    }
-
-    function normalizePart(raw){
-      const partNumber = String(raw.partNumber || raw.PARTNUMBER || raw.part_number || raw.part || "").trim();
-      if(!partNumber) return null;
-
-      return {
-        id: raw.id || uid(),
-        group: normalizeGroup(raw),
-        brand: normalizeBrand(raw) || (normalizeGroup(raw) === "Tomy Trailer" ? "Hyundai" : "Freightliner"),
-        status: raw.status || "In Stock",
-        partNumber,
-        partName: String(raw.partName || raw.description || raw.DESCRIPTION || raw.part_name || "").trim() || partNumber,
-        category: raw.category || "",
-        cost: Number(raw.cost ?? raw.price ?? raw.avgCost ?? raw.average_cost ?? 0) || 0,
-        avgCharge: Number(raw.avgCharge ?? raw.averageCharge ?? raw.charge ?? 0) || 0,
-        roCount: Number(raw.roCount ?? raw.ROCOUNT ?? raw.usageCount ?? raw.count ?? 0) || 0,
-        vendor: raw.vendor || raw.supplier || "",
-        crossRef: raw.crossRef || raw.cross_reference || "",
-        fits: raw.fits || raw.application || "",
-        keywords: raw.keywords || "",
-        location: raw.location || "",
-        notes: raw.notes || "",
-        photos: Array.isArray(raw.photos) ? raw.photos : [],
-        updatedAt: raw.updatedAt || new Date().toISOString()
-      };
-    }
-
-    function dedupeParts(list){
-      const map = new Map();
-      for(const raw of list){
-        const p = normalizePart(raw);
-        if(!p) continue;
-        const key = p.partNumber.toUpperCase();
-        if(!map.has(key)) map.set(key, p);
-        else {
-          const e = map.get(key);
-          map.set(key, {
-            ...e,
-            group: e.group || p.group,
-            brand: e.brand || p.brand,
-            partName: e.partName || p.partName,
-            category: e.category || p.category,
-            cost: e.cost || p.cost,
-            avgCharge: Math.max(Number(e.avgCharge||0), Number(p.avgCharge||0)),
-            roCount: Math.max(Number(e.roCount||0), Number(p.roCount||0)),
-            vendor: e.vendor || p.vendor,
-            crossRef: e.crossRef || p.crossRef,
-            fits: e.fits || p.fits,
-            keywords: [e.keywords, p.keywords].filter(Boolean).join(" ").trim(),
-            location: e.location || p.location,
-            notes: [e.notes, p.notes].filter(Boolean).join(" | ").trim(),
-            photos: (e.photos && e.photos.length) ? e.photos : p.photos,
-            updatedAt: new Date().toISOString()
-          });
-        }
-      }
-      return [...map.values()];
-    }
-
-    async function parseCSV(file){
-      const text = await file.text();
-      const lines = text.split(/\r?\n/).filter(line => line.trim());
-      if(lines.length < 2) return [];
-      const rows = [];
-      let headers = [];
-      let current = '';
-      let parsed = [];
-      function parseLine(line){
-        const out=[]; let cell=''; let inQuotes=false;
-        for(let i=0;i<line.length;i++){
-          const ch=line[i], next=line[i+1];
-          if(ch === '"' && inQuotes && next === '"'){ cell += '"'; i++; continue; }
-          if(ch === '"'){ inQuotes = !inQuotes; continue; }
-          if(ch === ',' && !inQuotes){ out.push(cell); cell=''; continue; }
-          cell += ch;
-        }
-        out.push(cell);
-        return out.map(v => v.trim());
-      }
-      headers = parseLine(lines[0]).map(h => h.trim());
-      for(let i=1;i<lines.length;i++){
-        parsed = parseLine(lines[i]);
-        if(parsed.every(v => !v)) continue;
-        const row = {};
-        headers.forEach((h, idx) => row[h] = parsed[idx] ?? "");
-        rows.push(row);
-      }
-      return rows;
-    }
-
-    function clearForm(){
-      $("partForm").reset();
-      $("group").value = "APP";
-      updateBrandOptions();
-      $("status").value = "In Stock";
-      $("roCount").value = 0;
-      pendingPhotos = [];
-      refreshPhotoPreview();
-      editId = null;
-      $("saveBtn").style.display = "block";
-      $("updateBtn").style.display = "none";
-    }
-
-    function getFormData(){
-      return {
-        id: editId || uid(),
-        group: $("group").value,
-        brand: $("brand").value,
-        status: $("status").value,
-        partNumber: $("partNumber").value.trim(),
-        partName: $("partName").value.trim(),
-        category: $("category").value.trim(),
-        cost: Number($("cost").value || 0),
-        avgCharge: Number($("avgCharge").value || 0),
-        roCount: Number($("roCount").value || 0),
-        vendor: $("vendor").value.trim(),
-        crossRef: $("crossRef").value.trim(),
-        fits: $("fits").value.trim(),
-        keywords: $("keywords").value.trim(),
-        location: $("location").value.trim(),
-        notes: $("notes").value.trim(),
-        photos: pendingPhotos.slice(),
-        updatedAt: new Date().toISOString()
-      };
-    }
-
-    function validatePart(part){
-      if(!part.group || !part.brand || !part.partNumber || !part.partName){ alert("Please fill in section, brand, part number, and description."); return false; }
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       return true;
     }
 
-    async function connectSupabase(){
-      try{
-        supabase = window.supabase.createClient(settings.supabaseUrl, settings.supabaseAnonKey);
-        await refreshAuthState();
-        await loadFromRemote();
-        subscribeRealtime();
-        setConnectionStatus("Connected to shared database. Everyone using this same setup will see the same catalog.", "ok");
-      }catch(err){
-        console.error(err);
-        setConnectionStatus("Could not connect to Supabase. Using local fallback data.", "info");
-        supabase = null;
-        loadLocalFallback();
-        render();
-      }
+    function normalizePartNumber(value = "") {
+      return String(value).toUpperCase().replace(/[\s\-./]/g, "").trim();
     }
 
-    async function refreshAuthState(){
-      if(!supabase){ currentUser = null; isAdmin = false; setAuthStatus("Admin not signed in.", "info"); setAdminUI(); return; }
-      const { data: { session } } = await supabase.auth.getSession();
-      currentUser = session?.user || null;
-      isAdmin = false;
-      if(currentUser){
-        const { data, error } = await supabase.from("admin_allowlist").select("email").eq("email", currentUser.email).maybeSingle();
-        if(!error && data) isAdmin = true;
-      }
-      setAuthStatus(currentUser ? (isAdmin ? `Signed in as approved admin: ${currentUser.email}` : `Signed in, but not on admin allowlist: ${currentUser.email}`) : "Admin not signed in.", currentUser ? (isAdmin ? "ok" : "info") : "info");
-      setAdminUI();
+    function showMessage(id, text, show = true) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.classList.toggle("hidden", !show);
     }
 
-    async function loadFromRemote(){
-      if(!supabase) return;
-      const tableName = settings.tableName || "parts_catalog";
-      const { data, error } = await supabase.from(tableName).select("*").order("roCount", { ascending: false });
-      if(error) throw error;
-      parts = dedupeParts(data || []);
-      render();
+    function escapeHtml(str = "") {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
-    function subscribeRealtime(){
-      if(!supabase || realtimeSubscribed) return;
-      const tableName = settings.tableName || "parts_catalog";
-      supabase.channel("parts-catalog-live")
-        .on("postgres_changes", { event: "*", schema: "public", table: tableName }, () => loadFromRemote())
-        .subscribe();
-      realtimeSubscribed = true;
-    }
-
-    async function savePartRemote(part){
-      const tableName = settings.tableName || "parts_catalog";
-      if(!supabase){ parts = dedupeParts([...parts, part]); saveLocalFallback(); render(); return; }
-      if(!isAdmin){ alert("You must be signed in as an approved admin to edit the shared catalog."); return; }
-      const existing = parts.find(p => p.partNumber.toUpperCase() === part.partNumber.toUpperCase());
-      if(existing && existing.id !== part.id) part.id = existing.id;
-      const { error } = await supabase.from(tableName).upsert([part], { onConflict: "partNumber" });
-      if(error){ console.error(error); alert("Could not save to shared database."); return; }
-      await loadFromRemote();
-    }
-
-    async function deletePartRemote(id){
-      const tableName = settings.tableName || "parts_catalog";
-      if(!supabase){ parts = parts.filter(p => p.id !== id); saveLocalFallback(); render(); return; }
-      if(!isAdmin){ alert("You must be signed in as an approved admin to delete from the shared catalog."); return; }
-      const { error } = await supabase.from(tableName).delete().eq("id", id);
-      if(error){ console.error(error); alert("Could not delete part from shared database."); return; }
-      await loadFromRemote();
-    }
-
-    function filteredParts(){
-      const q = $("searchInput").value.trim().toLowerCase();
-      const brand = $("filterBrand").value;
-      const category = $("filterCategory").value.trim().toLowerCase();
-      const status = $("filterStatus").value;
-      const photoOnly = $("photoOnly").value;
-
-      let data = parts.filter(p => {
-        const hay = [p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.cost,p.avgCharge,p.roCount,p.vendor,p.crossRef,p.fits,p.keywords,p.location,p.notes].join(" ").toLowerCase();
-        const tabMatch = currentTab === "all" || (currentTab === "top" ? Number(p.roCount||0) > 0 : p.group === currentTab);
-        return tabMatch
-          && (!q || hay.includes(q))
-          && (!brand || p.brand === brand)
-          && (!category || (p.category || "").toLowerCase().includes(category))
-          && (!status || p.status === status)
-          && (!photoOnly || (photoOnly === "withPhotos" ? Array.isArray(p.photos) && p.photos.length : true));
-      });
-
-      const sortBy = $("sortBy").value;
-      data.sort((a,b) => {
-        if(sortBy === "number") return (a.partNumber||"").localeCompare(b.partNumber||"");
-        if(sortBy === "name") return (a.partName||"").localeCompare(b.partName||"");
-        if(sortBy === "brand") return (a.brand||"").localeCompare(b.brand||"");
-        if(sortBy === "costDesc") return Number(b.cost||0) - Number(a.cost||0);
-        if(sortBy === "updated") return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-        return Number(b.roCount||0) - Number(a.roCount||0);
-      });
-      return data;
-    }
-
-    function renderStats(){
-      $("totalParts").textContent = parts.length;
-      $("appCount").textContent = parts.filter(p => p.group === "APP").length;
-      $("trailerCount").textContent = parts.filter(p => p.group === "Tomy Trailer").length;
-      $("topRoCount").textContent = Math.max(0, ...parts.map(p => Number(p.roCount||0)));
-      $("brandCount").textContent = new Set(parts.map(p => p.brand).filter(Boolean)).size;
-    }
-
-    function renderTopParts(){
-      const data = [...parts].sort((a,b)=>Number(b.roCount||0)-Number(a.roCount||0)).slice(0,12);
-      const list = $("topPartsList");
-      if(!data.length){
-        list.innerHTML = "";
-        $("topEmpty").style.display = "block";
+    async function signup() {
+      if (!supabaseClient) return;
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      if (!email || !password) {
+        showMessage("authMessage", "Enter email and password first.");
         return;
       }
-      $("topEmpty").style.display = "none";
-      list.innerHTML = data.map(p => `
-        <div class="top-card">
-          <div class="part-title">${safe(p.partName || "")}</div>
-          <div class="part-sub"><strong>${safe(p.partNumber || "")}</strong> • ${safe(p.brand || "")}</div>
-          <div class="detail-grid">
-            <div class="detail"><div class="k">RO Count</div><div class="v">${safe(String(p.roCount || 0))}</div></div>
-            <div class="detail"><div class="k">Price</div><div class="v">${money(p.cost)}</div></div>
-          </div>
-          <div class="actions">
-            <button class="btn-secondary" onclick="copyField('${p.id}','partNumber','Part number copied.')">Copy P/N</button>
-            <button class="btn-muted" onclick="copyField('${p.id}','partName','Description copied.')">Copy Desc</button>
-          </div>
-        </div>
-      `).join("");
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      showMessage("authMessage", error ? error.message : "Account created. Check your email if confirmation is enabled.");
     }
 
-    function render(){
-      renderStats();
-      renderTopParts();
-      document.querySelectorAll(".tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === currentTab));
-      const data = filteredParts();
-      const list = $("partsList");
-      if(!data.length){
-        list.innerHTML = "";
-        $("emptyState").style.display = "block";
+    async function login() {
+      if (!supabaseClient) return;
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      if (!email || !password) {
+        showMessage("authMessage", "Enter email and password first.");
         return;
       }
-      $("emptyState").style.display = "none";
-
-      list.innerHTML = data.map(p => `
-        <div class="part-card">
-          <div class="part-head">
-            <div>
-              <div class="part-title">${safe(p.partName || "")}</div>
-              <div class="part-sub"><strong>${safe(p.partNumber || "")}</strong> • ${safe(p.brand || "")} • ${safe(p.group || "")}</div>
-            </div>
-            <div><span class="tag ${statusClass(p.status)}">${safe(p.status || "—")}</span></div>
-          </div>
-          <div class="detail-grid">
-            <div class="detail"><div class="k">RO Count</div><div class="v">${safe(String(p.roCount ?? 0))}</div></div>
-            <div class="detail"><div class="k">Price / Cost</div><div class="v">${money(p.cost)}</div></div>
-            <div class="detail"><div class="k">Average Charge</div><div class="v">${money(p.avgCharge)}</div></div>
-            <div class="detail"><div class="k">Vendor</div><div class="v">${safe(p.vendor || "—")}</div></div>
-            <div class="detail"><div class="k">Cross Ref</div><div class="v">${safe(p.crossRef || "—")}</div></div>
-            <div class="detail"><div class="k">Fits / Application</div><div class="v">${safe(p.fits || "—")}</div></div>
-            <div class="detail"><div class="k">Keywords</div><div class="v">${safe(p.keywords || "—")}</div></div>
-            <div class="detail"><div class="k">Notes</div><div class="v">${safe(p.notes || "—")}</div></div>
-          </div>
-          ${(Array.isArray(p.photos) && p.photos.length) ? `<div class="thumb-row">${p.photos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join("")}</div>` : ""}
-          <div class="actions">
-            <button class="btn-secondary" onclick="copyField('${p.id}','partNumber','Part number copied.')">Copy P/N</button>
-            <button class="btn-muted" onclick="copyField('${p.id}','partName','Description copied.')">Copy Desc</button>
-            <button class="btn-muted" onclick="copyResultLine('${p.id}')">Copy Line</button>
-            ${isAdmin ? `<button class="btn-muted" onclick="editPart('${p.id}')">Edit</button><button class="btn-danger" onclick="deletePart('${p.id}')">Delete</button>` : ``}
-          </div>
-        </div>
-      `).join("");
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      showMessage("authMessage", error ? error.message : "Logged in.");
+      if (!error) await handleSession();
     }
 
-    window.copyField = function(id, field, msg){
-      const p = parts.find(x => x.id === id);
-      if(!p) return;
-      copyText(String(p[field] || ""), msg);
+    async function logout() {
+      if (!supabaseClient) return;
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      document.getElementById("app").classList.add("hidden");
+      document.getElementById("logoutBtn").classList.add("hidden");
+      showMessage("authMessage", "Logged out.");
     }
 
-    window.copyResultLine = function(id){
-      const p = parts.find(x => x.id === id);
-      if(!p) return;
-      const line = `${p.partNumber} - ${p.partName} - ${money(p.cost)}`;
-      copyText(line, "Part line copied.");
+    async function handleSession() {
+      const { data } = await supabaseClient.auth.getUser();
+      currentUser = data?.user || null;
+      const loggedIn = !!currentUser;
+      document.getElementById("app").classList.toggle("hidden", !loggedIn);
+      document.getElementById("logoutBtn").classList.toggle("hidden", !loggedIn);
+      if (loggedIn) {
+        showMessage("authMessage", `Logged in as ${currentUser.email}`);
+        await loadParts();
+      }
     }
 
-    function exportJson(){
-      const blob = new Blob([JSON.stringify(parts, null, 2)], {type:"application/json"});
-      download(blob, "shared-parts-search-top-parts.json");
-    }
-    function exportCsv(){
-      const headers = ["Section","Brand","Status","Part Number","Description","Category","Price","Average Charge","RO Count","Vendor","Cross Ref","Fits","Keywords","Location","Notes","Updated At"];
-      const rows = parts.map(p => [p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.cost,p.avgCharge,p.roCount,p.vendor,p.crossRef,p.fits,p.keywords,p.location,p.notes,p.updatedAt]);
-      const csv = [headers, ...rows].map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\n");
-      download(new Blob([csv], {type:"text/csv;charset=utf-8;"}), "shared-parts-search-top-parts.csv");
-    }
-    function download(blob, name){
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+    function parseCsvFile(file) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => resolve(results.data || []),
+          error: reject
+        });
+      });
     }
 
-    function editPart(id){
-      const p = parts.find(x => x.id === id);
-      if(!p) return;
-      editId = id;
-      $("group").value = p.group; updateBrandOptions(); $("brand").value = p.brand;
-      $("status").value = p.status || "In Stock";
-      $("partNumber").value = p.partNumber || "";
-      $("partName").value = p.partName || "";
-      $("category").value = p.category || "";
-      $("cost").value = p.cost ?? 0;
-      $("avgCharge").value = p.avgCharge ?? 0;
-      $("roCount").value = p.roCount ?? 0;
-      $("vendor").value = p.vendor || "";
-      $("crossRef").value = p.crossRef || "";
-      $("fits").value = p.fits || "";
-      $("keywords").value = p.keywords || "";
-      $("location").value = p.location || "";
-      $("notes").value = p.notes || "";
-      pendingPhotos = Array.isArray(p.photos) ? p.photos.slice() : [];
-      refreshPhotoPreview();
-      $("saveBtn").style.display = "none";
-      $("updateBtn").style.display = "block";
-      window.scrollTo({ top: document.getElementById("adminPanel").offsetTop - 80, behavior: "smooth" });
+    async function parseSpreadsheet(file) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith(".csv")) return await parseCsvFile(file);
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
     }
-    window.editPart = editPart;
 
-    async function deletePart(id){
-      if(!confirm("Delete this part?")) return;
-      await deletePartRemote(id);
+    function pickField(row, keys) {
+      const entries = Object.keys(row);
+      for (const wanted of keys) {
+        const found = entries.find(k => String(k).trim().toLowerCase() === wanted.toLowerCase());
+        if (found) return row[found];
+      }
+      return "";
     }
-    window.deletePart = deletePart;
 
-    async function importAnyFile(file){
-      if(!file) return;
-      try{
-        let arr = [];
-        if(file.name.toLowerCase().endsWith(".json")){
-          const parsed = JSON.parse(await file.text());
-          arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.parts) ? parsed.parts : [];
-        } else if(file.name.toLowerCase().endsWith(".csv")){
-          arr = await parseCSV(file);
+    async function scanUpload() {
+      if (!currentUser) {
+        showMessage("uploadMessage", "Log in first.");
+        return;
+      }
+      const file = document.getElementById("partsFile").files[0];
+      if (!file) {
+        showMessage("uploadMessage", "Choose a CSV or Excel file first.");
+        return;
+      }
+
+      showMessage("uploadMessage", "Scanning file...");
+      const rows = await parseSpreadsheet(file);
+
+      pendingReview = rows.map((row, index) => {
+        const original = String(
+          pickField(row, ["part_number", "part number", "part #", "pn", "p/n"])
+        ).trim();
+        const description = String(pickField(row, ["description", "desc"])) .trim();
+        const manufacturer = String(pickField(row, ["manufacturer", "brand", "mfr"])) .trim();
+        const roCountRaw = pickField(row, ["ro_count", "ro count", "rocount", "count"]);
+        const notes = String(pickField(row, ["notes", "note"])) .trim();
+        const ro_count = Number(roCountRaw || 0) || 0;
+        const normalized = normalizePartNumber(original);
+
+        let action = "skip";
+        let status = "invalid";
+        let exactMatch = null;
+        let normalizedMatch = null;
+
+        if (original) {
+          exactMatch = partsCache.find(p => (p.part_number_original || "") === original) || null;
+          normalizedMatch = partsCache.find(p => (p.part_number_normalized || "") === normalized) || null;
+
+          if (exactMatch) {
+            status = "exact_duplicate";
+            action = "merge_exact";
+          } else if (normalizedMatch) {
+            status = "possible_duplicate";
+            action = "keep_separate";
+          } else {
+            status = "new";
+            action = "insert";
+          }
+        }
+
+        return {
+          rowIndex: index + 1,
+          original,
+          normalized,
+          description,
+          manufacturer,
+          ro_count,
+          notes,
+          status,
+          action,
+          exactMatch,
+          normalizedMatch
+        };
+      });
+
+      renderReview();
+      showMessage("uploadMessage", `Scan complete. ${pendingReview.length} rows checked.`);
+    }
+
+    function renderReview() {
+      const card = document.getElementById("reviewCard");
+      card.classList.remove("hidden");
+
+      const counts = {
+        total: pendingReview.length,
+        new: pendingReview.filter(x => x.status === "new").length,
+        exact: pendingReview.filter(x => x.status === "exact_duplicate").length,
+        possible: pendingReview.filter(x => x.status === "possible_duplicate").length,
+        invalid: pendingReview.filter(x => x.status === "invalid").length,
+      };
+
+      document.getElementById("reviewStats").innerHTML = `
+        <div class="stat"><div>Total Rows</div><div class="num">${counts.total}</div></div>
+        <div class="stat"><div>New Parts</div><div class="num">${counts.new}</div></div>
+        <div class="stat"><div>Exact Duplicates</div><div class="num">${counts.exact}</div></div>
+        <div class="stat"><div>Possible Duplicates</div><div class="num">${counts.possible}</div></div>
+        <div class="stat"><div>Invalid Rows</div><div class="num">${counts.invalid}</div></div>
+      `;
+
+      const html = pendingReview.map((item, i) => {
+        const pillClass = item.status === "new" ? "" : item.status === "possible_duplicate" ? "warn" : "danger";
+        const statusLabel = item.status.replaceAll("_", " ");
+        const existing = item.exactMatch || item.normalizedMatch;
+
+        let actionOptions = "";
+        if (item.status === "new") {
+          actionOptions = `<option value="insert" ${item.action === "insert" ? "selected" : ""}>Add New</option><option value="skip">Skip</option>`;
+        } else if (item.status === "exact_duplicate") {
+          actionOptions = `
+            <option value="merge_exact" ${item.action === "merge_exact" ? "selected" : ""}>Merge Into Existing</option>
+            <option value="skip">Skip</option>`;
+        } else if (item.status === "possible_duplicate") {
+          actionOptions = `
+            <option value="keep_separate" ${item.action === "keep_separate" ? "selected" : ""}>Keep Separate</option>
+            <option value="merge_possible" ${item.action === "merge_possible" ? "selected" : ""}>Merge Into Existing</option>
+            <option value="skip">Skip</option>`;
         } else {
-          throw new Error("Unsupported file type.");
+          actionOptions = `<option value="skip" selected>Skip</option>`;
         }
-        if(!arr.length) throw new Error("No parts found in file.");
-        const deduped = dedupeParts(arr);
-        if(!supabase){
-          parts = dedupeParts([...parts, ...deduped]); saveLocalFallback(); render(); alert("Imported into local fallback data."); return;
+
+        return `
+          <div class="review-item">
+            <div style="margin-bottom:10px;"><span class="pill ${pillClass}">${escapeHtml(statusLabel)}</span>Row ${item.rowIndex}</div>
+            <div class="split">
+              <div>
+                <h4>Uploaded</h4>
+                <div><strong>Part #:</strong> ${escapeHtml(item.original || "—")}</div>
+                <div><strong>Description:</strong> ${escapeHtml(item.description || "—")}</div>
+                <div><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer || "—")}</div>
+                <div><strong>RO Count:</strong> ${item.ro_count}</div>
+                <div><strong>Normalized:</strong> ${escapeHtml(item.normalized || "—")}</div>
+              </div>
+              <div>
+                <h4>Existing Match</h4>
+                ${existing ? `
+                  <div><strong>Part #:</strong> ${escapeHtml(existing.part_number_original || "—")}</div>
+                  <div><strong>Description:</strong> ${escapeHtml(existing.description || "—")}</div>
+                  <div><strong>Manufacturer:</strong> ${escapeHtml(existing.manufacturer || "—")}</div>
+                  <div><strong>RO Count:</strong> ${existing.ro_count || 0}</div>
+                  <div><strong>Normalized:</strong> ${escapeHtml(existing.part_number_normalized || "—")}</div>
+                ` : `<div>None</div>`}
+              </div>
+            </div>
+            <div class="row" style="margin-top:12px;">
+              <div>
+                <select onchange="setReviewAction(${i}, this.value)">${actionOptions}</select>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("reviewList").innerHTML = html || "<p>No rows found.</p>";
+    }
+
+    window.setReviewAction = function(index, value) {
+      pendingReview[index].action = value;
+    };
+
+    async function applyReview() {
+      if (!currentUser) return;
+      const inserts = [];
+      const updates = [];
+      let skipped = 0;
+
+      for (const item of pendingReview) {
+        if (item.action === "skip" || item.status === "invalid") {
+          skipped++;
+          continue;
         }
-        if(!isAdmin){ alert("You must be signed in as an approved admin to import into the shared catalog."); return; }
-        const { error } = await supabase.from(settings.tableName || "parts_catalog").upsert(deduped, { onConflict: "partNumber" });
-        if(error) throw error;
-        await loadFromRemote();
-        alert(`Import complete. Added or updated ${deduped.length} parts.`);
-      } catch(err){
-        console.error(err);
-        alert("Import failed. Use JSON or CSV parts lists.");
+
+        if (item.action === "insert" || item.action === "keep_separate") {
+          inserts.push({
+            part_number_original: item.original,
+            part_number_normalized: item.normalized,
+            description: item.description,
+            manufacturer: item.manufacturer,
+            ro_count: item.ro_count,
+            notes: item.notes,
+            uploaded_by: currentUser.id,
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        if (item.action === "merge_exact" || item.action === "merge_possible") {
+          const existing = item.exactMatch || item.normalizedMatch;
+          if (!existing) { skipped++; continue; }
+          updates.push({
+            id: existing.id,
+            ro_count: Number(existing.ro_count || 0) + Number(item.ro_count || 0),
+            description: existing.description || item.description || "",
+            manufacturer: existing.manufacturer || item.manufacturer || "",
+            notes: existing.notes || item.notes || "",
+            updated_at: new Date().toISOString()
+          });
+        }
       }
-    }
 
-    async function loadTopSeed(){
-      const res = await fetch('./parts-list-rocount-sorted.json');
-      if(!res.ok){ alert("Top parts seed file not found next to app."); return; }
-      const arr = await res.json();
-      await importArrayDirect(arr);
-    }
-
-    async function importArrayDirect(arr){
-      const deduped = dedupeParts(arr);
-      if(!supabase){
-        parts = dedupeParts([...parts, ...deduped]); saveLocalFallback(); render(); return;
+      if (inserts.length) {
+        const { error } = await supabaseClient.from("parts").insert(inserts);
+        if (error) {
+          showMessage("uploadMessage", `Insert error: ${error.message}`);
+          return;
+        }
       }
-      if(!isAdmin){ alert("Admins only."); return; }
-      const { error } = await supabase.from(settings.tableName || "parts_catalog").upsert(deduped, { onConflict: "partNumber" });
-      if(error){ console.error(error); alert("Could not load parts seed."); return; }
-      await loadFromRemote();
+
+      for (const upd of updates) {
+        const { error } = await supabaseClient
+          .from("parts")
+          .update({
+            ro_count: upd.ro_count,
+            description: upd.description,
+            manufacturer: upd.manufacturer,
+            notes: upd.notes,
+            updated_at: upd.updated_at
+          })
+          .eq("id", upd.id);
+        if (error) {
+          showMessage("uploadMessage", `Update error: ${error.message}`);
+          return;
+        }
+      }
+
+      showMessage("uploadMessage", `Done. Added ${inserts.length}, merged ${updates.length}, skipped ${skipped}.`);
+      pendingReview = [];
+      document.getElementById("reviewCard").classList.add("hidden");
+      await loadParts();
+      document.getElementById("partsFile").value = "";
     }
 
-    async function loadSample(){ await importArrayDirect([
-      {group:"APP",brand:"Freightliner",status:"In Stock",partNumber:"16-724",partName:"7-Way Receptacle",category:"Electrical",cost:28.5,avgCharge:49.99,roCount:12,vendor:"Dealer",crossRef:"",fits:"M2 / trailer connection",keywords:"7-way receptacle trailer plug electrical",location:"",notes:"Common trailer connection part.",photos:[]},
-      {group:"Tomy Trailer",brand:"Wabash",status:"Low Stock",partNumber:"31317-04",partName:"True Tee Fitting",category:"ATIS",cost:11.75,avgCharge:32,roCount:8,vendor:"FleetPride",crossRef:"",fits:"ATIS trailers",keywords:"true tee fitting atis",location:"",notes:"Keep extras in stock.",photos:[]}
-    ]); }
+    async function loadParts() {
+      if (!currentUser) return;
+      const sortField = document.getElementById("sortField").value;
+      const ascending = document.getElementById("sortDirection").value === "asc";
+      const { data, error } = await supabaseClient
+        .from("parts")
+        .select("*")
+        .order(sortField, { ascending });
 
-    async function signInPassword(){
-      if(!supabase){ alert("Connect Shared Setup first."); return; }
-      const email = $("loginEmail").value.trim();
-      const password = $("loginPassword").value;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if(error){ alert(error.message); return; }
-      await refreshAuthState();
-      $("authModal").classList.remove("show");
+      if (error) {
+        document.getElementById("tableWrap").innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+        return;
+      }
+
+      partsCache = data || [];
+      renderStats();
+      renderTable();
     }
-    async function sendMagicLink(){
-      if(!supabase){ alert("Connect Shared Setup first."); return; }
-      const email = $("loginEmail").value.trim();
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if(error){ alert(error.message); return; }
-      alert("Magic link sent.");
+
+    function filteredParts() {
+      const q = document.getElementById("searchInput").value.trim().toLowerCase();
+      if (!q) return [...partsCache];
+      return partsCache.filter(p => {
+        const blob = [
+          p.part_number_original,
+          p.part_number_normalized,
+          p.description,
+          p.manufacturer,
+          p.notes
+        ].join(" ").toLowerCase();
+        return blob.includes(q);
+      });
     }
-    async function signOutNow(){ if(!supabase) return; await supabase.auth.signOut(); await refreshAuthState(); }
 
-    document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => { currentTab = btn.dataset.tab; render(); }));
-    ["searchInput","filterBrand","filterCategory","filterStatus","sortBy","photoOnly"].forEach(id => { $(id).addEventListener("input", render); $(id).addEventListener("change", render); });
+    function renderStats() {
+      const items = filteredParts();
+      const total = items.length;
+      const totalRO = items.reduce((sum, p) => sum + Number(p.ro_count || 0), 0);
+      const uniqueNormalized = new Set(items.map(x => x.part_number_normalized)).size;
+      const highUse = [...items].sort((a, b) => Number(b.ro_count || 0) - Number(a.ro_count || 0))[0];
+      document.getElementById("dashboardStats").innerHTML = `
+        <div class="stat"><div>Total Parts</div><div class="num">${total}</div></div>
+        <div class="stat"><div>Total RO Count</div><div class="num">${totalRO}</div></div>
+        <div class="stat"><div>Unique Normalized Values</div><div class="num">${uniqueNormalized}</div></div>
+        <div class="stat"><div>Top Part</div><div class="num" style="font-size:18px;">${escapeHtml(highUse?.part_number_original || "—")}</div></div>
+      `;
+    }
 
-    function quickBrand(brand){ $("filterBrand").value = brand; currentTab = (brand === "Hyundai" || brand === "Wabash") ? "Tomy Trailer" : "APP"; render(); }
-    $("showFreightliner").addEventListener("click", () => quickBrand("Freightliner"));
-    $("showVolvo").addEventListener("click", () => quickBrand("Volvo"));
-    $("showKenworth").addEventListener("click", () => quickBrand("Kenworth"));
-    $("showInternational").addEventListener("click", () => quickBrand("International"));
-    $("showHyundai").addEventListener("click", () => quickBrand("Hyundai"));
-    $("showWabash").addEventListener("click", () => quickBrand("Wabash"));
-    $("clearBrandQuick").addEventListener("click", () => { $("filterBrand").value = ""; currentTab = "all"; render(); });
+    function renderTable() {
+      const items = filteredParts();
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th onclick="changeSort('part_number_original')">Part Number</th>
+              <th onclick="changeSort('description')">Description</th>
+              <th onclick="changeSort('manufacturer')">Manufacturer</th>
+              <th onclick="changeSort('ro_count')">RO Count</th>
+              <th onclick="changeSort('created_at')">Added</th>
+              <th onclick="changeSort('updated_at')">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(p => `
+              <tr>
+                <td>${escapeHtml(p.part_number_original || "")}</td>
+                <td>${escapeHtml(p.description || "")}</td>
+                <td>${escapeHtml(p.manufacturer || "")}</td>
+                <td>${Number(p.ro_count || 0)}</td>
+                <td>${p.created_at ? new Date(p.created_at).toLocaleString() : ""}</td>
+                <td>${p.updated_at ? new Date(p.updated_at).toLocaleString() : ""}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+      document.getElementById("tableWrap").innerHTML = html;
+    }
 
-    $("advisorModeBtn").addEventListener("click", () => { isAdmin = false; setAdminUI(); });
-    $("adminModeBtn").addEventListener("click", () => $("authModal").classList.add("show"));
-    $("settingsBtn").addEventListener("click", () => { populateSettingsForm(); $("settingsModal").classList.add("show"); });
-    $("authBtn").addEventListener("click", () => $("authModal").classList.add("show"));
-    $("closeSettingsBtn").addEventListener("click", () => $("settingsModal").classList.remove("show"));
-    $("closeAuthBtn").addEventListener("click", () => $("authModal").classList.remove("show"));
-    $("clearSettingsBtn").addEventListener("click", () => {
-      settings = { supabaseUrl: DEFAULT_SUPABASE_URL, supabaseAnonKey: DEFAULT_SUPABASE_ANON_KEY, tableName: "parts_catalog" };
-      saveSettings(); realtimeSubscribed = false; connectSupabase(); $("settingsModal").classList.remove("show");
-    });
-    $("saveSettingsBtn").addEventListener("click", async () => {
-      settings.supabaseUrl = $("supabaseUrl").value.trim();
-      settings.supabaseAnonKey = $("supabaseAnonKey").value.trim();
-      settings.tableName = $("tableName").value.trim() || "parts_catalog";
-      saveSettings(); realtimeSubscribed = false; $("settingsModal").classList.remove("show"); await connectSupabase();
-    });
+    window.changeSort = async function(field) {
+      const sortField = document.getElementById("sortField");
+      const sortDirection = document.getElementById("sortDirection");
+      if (sortField.value === field) {
+        sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+      } else {
+        sortField.value = field;
+      }
+      await loadParts();
+    };
 
-    $("signInBtn").addEventListener("click", signInPassword);
-    $("magicLinkBtn").addEventListener("click", sendMagicLink);
-    $("signOutBtn").addEventListener("click", signOutNow);
+    function wireEvents() {
+      document.getElementById("loginBtn").addEventListener("click", login);
+      document.getElementById("signupBtn").addEventListener("click", signup);
+      document.getElementById("logoutBtn").addEventListener("click", logout);
+      document.getElementById("scanUploadBtn").addEventListener("click", scanUpload);
+      document.getElementById("applyReviewBtn").addEventListener("click", applyReview);
+      document.getElementById("refreshBtn").addEventListener("click", loadParts);
+      document.getElementById("searchInput").addEventListener("input", () => {
+        renderStats();
+        renderTable();
+      });
+      document.getElementById("sortField").addEventListener("change", loadParts);
+      document.getElementById("sortDirection").addEventListener("change", loadParts);
+    }
 
-    $("group").addEventListener("change", updateBrandOptions);
-    $("photoInput").addEventListener("change", async (e) => {
-      const files = e.target.files; if(!files || !files.length) return;
-      const imgs = await readFilesAsDataURLs(files); pendingPhotos = pendingPhotos.concat(imgs); refreshPhotoPreview(); e.target.value = "";
-    });
+    async function boot() {
+      if (!initSupabase()) return;
+      wireEvents();
+      await handleSession();
+      supabaseClient.auth.onAuthStateChange(async () => {
+        await handleSession();
+      });
+    }
 
-    $("partForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const part = getFormData();
-      if(!validatePart(part)) return;
-      await savePartRemote(part);
-      clearForm();
-    });
-
-    $("updateBtn").addEventListener("click", async () => {
-      const part = getFormData();
-      if(!validatePart(part)) return;
-      await savePartRemote(part);
-      clearForm();
-    });
-    $("clearBtn").addEventListener("click", clearForm);
-    $("importBtn").addEventListener("click", () => $("importFile").click());
-    $("importFile").addEventListener("change", async (e) => {
-      const file = e.target.files[0]; if(file) await importAnyFile(file); e.target.value = "";
-    });
-    $("loadSampleBtn").addEventListener("click", loadSample);
-    $("loadTopSeedBtn").addEventListener("click", loadTopSeed);
-    $("exportJsonBtn").addEventListener("click", exportJson);
-    $("exportCsvBtn").addEventListener("click", exportCsv);
-
-    populateFilterBrands();
-    updateBrandOptions();
-    loadLocalFallback();
-    render();
-    populateSettingsForm();
-    connectSupabase();
+    boot();
   </script>
 </body>
 </html>
