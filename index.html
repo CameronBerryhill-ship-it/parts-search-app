@@ -48,15 +48,6 @@
       padding: 12px 14px;
       font-size: 14px;
     }
-    input::file-selector-button {
-      margin-right: 12px;
-      border: none;
-      background: var(--panel-2);
-      color: var(--text);
-      padding: 10px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
     button {
       cursor: pointer;
       background: var(--accent);
@@ -475,10 +466,37 @@
       updateStats();
     }
 
+    async function fetchAllParts(orderBy = 'ro_count', ascending = false) {
+      const pageSize = 1000;
+      let from = 0;
+      let allParts = [];
+      let keepGoing = true;
+
+      while (keepGoing) {
+        const { data, error } = await state.supabase
+          .from('parts')
+          .select('*')
+          .order(orderBy, { ascending })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          keepGoing = false;
+          break;
+        }
+
+        allParts = allParts.concat(data);
+        from += pageSize;
+
+        if (data.length < pageSize) keepGoing = false;
+      }
+
+      return allParts;
+    }
+
     async function loadParts() {
-      const { data, error } = await state.supabase.from('parts').select('*').order('ro_count', { ascending: false });
-      if (error) throw error;
-      state.allParts = data || [];
+      state.allParts = await fetchAllParts('ro_count', false);
       applyFilters();
     }
 
@@ -486,10 +504,6 @@
       state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
       el.reviewCard.classList.add('hidden');
       el.reviewList.innerHTML = '';
-      el.reviewNew.textContent = '0';
-      el.reviewExact.textContent = '0';
-      el.reviewPossible.textContent = '0';
-      el.reviewRows.textContent = '0';
       updateStats();
     }
 
@@ -582,28 +596,15 @@
     }
 
     async function scanUpload() {
-      showMessage(el.uploadMessage, 'Scanning file...', 'warning');
       try {
+        showMessage(el.uploadMessage, '', 'success');
         resetReview();
         const file = el.partsFile.files[0];
         if (!file) return showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
         const rows = await fileToRows(file);
-        if (!rows || !rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
+        if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
         state.review.rowsScanned = rows.length;
-
-        let existing = [];
-        try {
-          const { data: existingParts, error } = await state.supabase.from('parts').select('*');
-          if (error) {
-            showMessage(el.uploadMessage, `File scanned, but database lookup failed. Run the Supabase SQL setup first or check table permissions. Error: ${escapeHtml(error.message)}`, 'error');
-          } else {
-            existing = existingParts || [];
-          }
-        } catch (dbErr) {
-          showMessage(el.uploadMessage, `File scanned, but database lookup failed: ${escapeHtml(dbErr.message)}`, 'error');
-        }
-
-        let usableRows = 0;
+        const existing = await fetchAllParts('ro_count', false);
         rows.forEach(row => {
           const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber']);
           const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc']);
@@ -611,35 +612,25 @@
           const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
           const notes = readRowValue(row, ['notes', 'Notes']);
           if (!original) return;
-          usableRows++;
           const normalized = normalizePartNumber(original);
           const payload = {
             part_number_original: original,
             part_number_normalized: normalized,
-            description,
-            manufacturer,
+            description, manufacturer,
             ro_count: Number(roCountRaw || 0),
             notes,
-            uploaded_by: state.user?.id || null,
-            skip: false
+            uploaded_by: state.user?.id || null
           };
           const exact = existing.find(x => String(x.part_number_original || '').trim() === original.trim());
-          if (exact) {
-            state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
-            return;
-          }
+          if (exact) return state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
           const possible = existing.find(x => String(x.part_number_normalized || '').trim() === normalized && String(x.part_number_original || '').trim() !== original.trim());
-          if (possible) {
-            state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
-            return;
-          }
-          state.review.newParts.push(payload);
+          if (possible) return state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+          state.review.newParts.push({ ...payload, skip: false });
         });
-
-        if (!usableRows) return showMessage(el.uploadMessage, 'The file loaded, but no usable part_number values were found. Make sure the header is exactly part_number.', 'error');
         renderReview();
-        showMessage(el.uploadMessage, `Scan complete. Rows read: ${rows.length}. Usable rows: ${usableRows}. New: ${state.review.newParts.length}. Exact duplicates: ${state.review.exactDuplicates.length}. Possible duplicates: ${state.review.possibleDuplicates.length}.`, 'success');
+        showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
       } catch (err) {
+        console.error(err);
         showMessage(el.uploadMessage, `Scan error: ${escapeHtml(err.message)}`, 'error');
       }
     }
@@ -763,12 +754,34 @@
         const email = el.email.value.trim();
         const password = el.password.value;
         if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
+
+        el.signupBtn.disabled = true;
+
         const { data, error } = await state.supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.user) showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
-        else showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
+
+        if (error) {
+          const msg = String(error.message || '').toLowerCase();
+          if (msg.includes('rate limit')) {
+            return showMessage(
+              el.authMessage,
+              'Too many signup attempts. Wait a few minutes or try logging in if the account already exists.',
+              'warning'
+            );
+          }
+          return showMessage(el.authMessage, `Sign up failed: ${escapeHtml(error.message)}`, 'error');
+        }
+
+        if (data.user) {
+          showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
+        } else {
+          showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
+        }
       } catch (err) {
-        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
+        showMessage(el.authMessage, 'Unexpected error creating account.', 'error');
+      } finally {
+        setTimeout(() => {
+          el.signupBtn.disabled = false;
+        }, 3000);
       }
     }
 
@@ -790,13 +803,17 @@
           return;
         }
         state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        showMessage(el.bootMessage, 'App loaded.', 'success');
+
         const { data, error } = await state.supabase.auth.getSession();
         if (error) throw error;
+
         const session = data?.session;
         if (session?.user) {
           state.user = session.user;
           await afterAuth();
         }
+
         state.supabase.auth.onAuthStateChange(async (_event, session) => {
           if (session?.user) {
             state.user = session.user;
@@ -807,6 +824,7 @@
             el.appShell.classList.add('hidden');
           }
         });
+
         el.loginBtn.addEventListener('click', login);
         el.signupBtn.addEventListener('click', signup);
         el.logoutBtn.addEventListener('click', logout);
