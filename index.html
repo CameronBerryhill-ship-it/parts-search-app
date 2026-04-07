@@ -142,6 +142,10 @@
       transition: width .15s linear;
     }
     .footer-space { height: 24px; }
+    .small { font-size: 12px; }
+    .related-list { display: grid; gap: 10px; }
+    .related-chip { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#111827; margin:2px 6px 2px 0; font-size:12px; }
+    .part-actions { display:flex; gap:8px; flex-wrap:wrap; }
   </style>
 </head>
 <body>
@@ -331,6 +335,42 @@
         </div>
       </div>
 
+      <div id="relatedCard" class="card hidden">
+        <div class="section-title">
+          <div>
+            <h2>Related Parts Manager</h2>
+            <p class="muted">Select a part from the table, then connect it to another existing part. This uses a real link table when the database is set up.</p>
+          </div>
+        </div>
+        <div id="relatedMessage"></div>
+        <div class="grid grid-2">
+          <div>
+            <label>Selected Part</label>
+            <input id="selectedPartDisplay" readonly placeholder="Choose a part from the table below" />
+          </div>
+          <div>
+            <label>Link To Part</label>
+            <select id="relatedTargetSelect">
+              <option value="">Choose another part</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:12px;">
+          <div>
+            <label>Link Note</label>
+            <input id="relatedLinkNote" type="text" placeholder="Optional note like use with, replace with, kit with" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="linkRelatedBtn" type="button">Link Parts</button>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <h3>Current Linked Parts</h3>
+          <div id="relatedList" class="related-list"></div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="section-title">
           <div>
@@ -351,6 +391,7 @@
                 <th data-sort="updated_at">Updated</th>
                 <th>Uploaded By</th>
                 <th data-sort="notes">Notes / Related</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="partsTbody"></tbody>
@@ -377,7 +418,10 @@
       reviewVisible: { newParts: REVIEW_PAGE_SIZE, exactDuplicates: REVIEW_PAGE_SIZE, possibleDuplicates: REVIEW_PAGE_SIZE },
       supabase: null,
       hasVehicleColumn: false,
-      isScanning: false
+      hasPartLinksTable: false,
+      isScanning: false,
+      selectedPartId: null,
+      relatedPartsMap: new Map()
     };
 
     const el = {
@@ -425,7 +469,14 @@
       sortBy: document.getElementById('sortBy'),
       sortDirection: document.getElementById('sortDirection'),
       partsTbody: document.getElementById('partsTbody'),
-      exportCsvBtn: document.getElementById('exportCsvBtn')
+      exportCsvBtn: document.getElementById('exportCsvBtn'),
+      relatedCard: document.getElementById('relatedCard'),
+      relatedMessage: document.getElementById('relatedMessage'),
+      selectedPartDisplay: document.getElementById('selectedPartDisplay'),
+      relatedTargetSelect: document.getElementById('relatedTargetSelect'),
+      relatedLinkNote: document.getElementById('relatedLinkNote'),
+      linkRelatedBtn: document.getElementById('linkRelatedBtn'),
+      relatedList: document.getElementById('relatedList')
     };
 
     function showMessage(target, text, type = 'success') {
@@ -586,10 +637,12 @@
 
     function renderPartsTable() {
       if (!state.filteredParts.length) {
-        el.partsTbody.innerHTML = '<tr><td colspan="9" class="muted">No parts found.</td></tr>';
+        el.partsTbody.innerHTML = '<tr><td colspan="10" class="muted">No parts found.</td></tr>';
         return;
       }
-      el.partsTbody.innerHTML = state.filteredParts.map(part => `
+      el.partsTbody.innerHTML = state.filteredParts.map(part => {
+        const relatedCount = state.relatedPartsMap.get(part.id)?.length || 0;
+        return `
         <tr>
           <td>${escapeHtml(part.part_number_original)}</td>
           <td>${escapeHtml(part.description || '')}</td>
@@ -600,7 +653,111 @@
           <td>${escapeHtml(formatDate(part.updated_at))}</td>
           <td>${escapeHtml(part.uploaded_by || '')}</td>
           <td>${escapeHtml(part.notes || '')}</td>
-        </tr>`).join('');
+          <td>
+            <div class="part-actions">
+              <button type="button" class="secondary small" onclick="manageRelatedPart('${part.id}')">Related (${relatedCount})</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+
+    function getPartLabel(part) {
+      return [part.part_number_original, part.manufacturer, part.description].filter(Boolean).join(' • ');
+    }
+
+    function partById(id) {
+      return state.allParts.find(part => part.id === id) || null;
+    }
+
+    async function detectPartLinksTable() {
+      try {
+        const { error } = await state.supabase.from('part_links').select('id').limit(1);
+        state.hasPartLinksTable = !error;
+      } catch (_) {
+        state.hasPartLinksTable = false;
+      }
+    }
+
+    async function loadRelatedPartsMap() {
+      state.relatedPartsMap = new Map();
+      if (!state.hasPartLinksTable || !state.allParts.length) return;
+
+      const pageSize = 1000;
+      let from = 0;
+      let keepGoing = true;
+      const links = [];
+
+      while (keepGoing) {
+        const { data, error } = await state.supabase
+          .from('part_links')
+          .select('*')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          keepGoing = false;
+          break;
+        }
+        links.push(...data);
+        from += pageSize;
+        if (data.length < pageSize) keepGoing = false;
+      }
+
+      const partIndex = new Map(state.allParts.map(part => [part.id, part]));
+      for (const link of links) {
+        const left = partIndex.get(link.part_id);
+        const right = partIndex.get(link.related_part_id);
+        if (!left || !right) continue;
+        if (!state.relatedPartsMap.has(left.id)) state.relatedPartsMap.set(left.id, []);
+        if (!state.relatedPartsMap.has(right.id)) state.relatedPartsMap.set(right.id, []);
+        state.relatedPartsMap.get(left.id).push({ link_id: link.id, part: right, relation_note: link.relation_note || '' });
+        state.relatedPartsMap.get(right.id).push({ link_id: link.id, part: left, relation_note: link.relation_note || '' });
+      }
+    }
+
+    function refreshRelatedTargetOptions() {
+      const selectedId = state.selectedPartId;
+      const currentValue = el.relatedTargetSelect.value;
+      const options = state.allParts
+        .filter(part => part.id !== selectedId)
+        .sort((a, b) => getPartLabel(a).localeCompare(getPartLabel(b)))
+        .map(part => `<option value="${escapeHtml(part.id)}">${escapeHtml(getPartLabel(part))}</option>`)
+        .join('');
+      el.relatedTargetSelect.innerHTML = '<option value="">Choose another part</option>' + options;
+      if ([...el.relatedTargetSelect.options].some(opt => opt.value === currentValue)) el.relatedTargetSelect.value = currentValue;
+    }
+
+    function renderRelatedList() {
+      const selected = partById(state.selectedPartId);
+      if (!selected) {
+        el.relatedCard.classList.add('hidden');
+        el.selectedPartDisplay.value = '';
+        el.relatedList.innerHTML = '';
+        return;
+      }
+
+      el.relatedCard.classList.remove('hidden');
+      el.selectedPartDisplay.value = getPartLabel(selected);
+      refreshRelatedTargetOptions();
+
+      const links = state.relatedPartsMap.get(selected.id) || [];
+      if (!state.hasPartLinksTable) {
+        el.relatedList.innerHTML = '<div class="notice warning">The database link table is not set up yet. Run the SQL file below, then reload the app.</div>';
+        return;
+      }
+      if (!links.length) {
+        el.relatedList.innerHTML = '<div class="notice">No linked parts yet for this part.</div>';
+        return;
+      }
+
+      el.relatedList.innerHTML = links.map(link => `
+        <div class="review-item">
+          <div><strong>${escapeHtml(link.part.part_number_original)}</strong> — ${escapeHtml(link.part.manufacturer || '')}</div>
+          <div class="muted">${escapeHtml(link.part.description || '')}</div>
+          <div class="small" style="margin-top:6px;">${link.relation_note ? `Link Note: ${escapeHtml(link.relation_note)}` : 'No link note'}</div>
+          <div class="actions"><button type="button" class="danger" onclick="removePartLink(${link.link_id})">Remove Link</button></div>
+        </div>`).join('');
     }
 
     function populateVehicleFilter() {
@@ -690,8 +847,10 @@
 
     async function loadParts() {
       state.allParts = await fetchAllParts('ro_count', false);
+      await loadRelatedPartsMap();
       populateVehicleFilter();
       applyFilters();
+      renderRelatedList();
     }
 
     function resetReview() {
@@ -906,6 +1065,8 @@
           related_parts: ''
         };
       }
+    }
+
     function buildPayloadFromRow(row, sourceProfile = { type: 'generic', fileName: '' }) {
       const original = readRowValue(row, [
         'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER', 'Part_Number', 'ITEM_ID'
@@ -1163,6 +1324,58 @@
       await mergeAllItems(state.review.possibleDuplicates, 'Merged {count} possible duplicates into existing parts.');
     }
 
+
+    async function createPartLink(selectedId, targetId, relationNote = '') {
+      if (!state.hasPartLinksTable) throw new Error('part_links table is not set up yet. Run the SQL setup script first.');
+      if (!selectedId || !targetId) throw new Error('Choose both parts before linking.');
+      if (selectedId === targetId) throw new Error('A part cannot be linked to itself.');
+
+      const leftId = [selectedId, targetId].sort()[0];
+      const rightId = [selectedId, targetId].sort()[1];
+      const { error } = await state.supabase.from('part_links').insert([{
+        part_id: leftId,
+        related_part_id: rightId,
+        relation_note: relationNote.trim(),
+        created_by: state.user?.id || null
+      }]);
+      if (error) throw error;
+    }
+
+    async function linkSelectedParts() {
+      try {
+        showMessage(el.relatedMessage, '', 'success');
+        if (!state.selectedPartId) return showMessage(el.relatedMessage, 'Choose a part from the table first.', 'warning');
+        const targetId = el.relatedTargetSelect.value;
+        if (!targetId) return showMessage(el.relatedMessage, 'Choose another part to link.', 'warning');
+        await createPartLink(state.selectedPartId, targetId, el.relatedLinkNote.value);
+        el.relatedTargetSelect.value = '';
+        el.relatedLinkNote.value = '';
+        await loadParts();
+        showMessage(el.relatedMessage, 'Parts linked.', 'success');
+      } catch (err) {
+        showMessage(el.relatedMessage, `Link failed: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    window.manageRelatedPart = function(id) {
+      state.selectedPartId = id;
+      showMessage(el.relatedMessage, '', 'success');
+      renderRelatedList();
+      el.relatedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.removePartLink = async function(linkId) {
+      try {
+        if (!state.hasPartLinksTable) return;
+        const { error } = await state.supabase.from('part_links').delete().eq('id', linkId);
+        if (error) throw error;
+        await loadParts();
+        showMessage(el.relatedMessage, 'Link removed.', 'success');
+      } catch (err) {
+        showMessage(el.relatedMessage, `Remove failed: ${escapeHtml(err.message)}`, 'error');
+      }
+    };
+
     function clearManualPartForm() {
       el.manualPartNumber.value = '';
       el.manualDescription.value = '';
@@ -1212,8 +1425,19 @@
           return showMessage(el.manualPartMessage, 'Matching part + manufacturer already existed, so it was merged and the notes were kept.', 'success');
         }
 
-        const { error } = await state.supabase.from('parts').insert([buildStoredRecord(payload)]);
+        const { data: insertedParts, error } = await state.supabase.from('parts').insert([buildStoredRecord(payload)]).select('*');
         if (error) throw error;
+
+        const insertedPart = insertedParts?.[0];
+        if (insertedPart && state.hasPartLinksTable && relatedParts) {
+          const requested = relatedParts.split(',').map(x => x.trim()).filter(Boolean);
+          for (const relatedPartNumber of requested) {
+            const matches = state.allParts.filter(part => normalizePartNumber(part.part_number_original) === normalizePartNumber(relatedPartNumber));
+            if (matches.length === 1) {
+              try { await createPartLink(insertedPart.id, matches[0].id, 'Added from manual part form'); } catch (_) {}
+            }
+          }
+        }
 
         await loadParts();
         clearManualPartForm();
@@ -1387,6 +1611,7 @@
         el.scanUploadBtn.addEventListener('click', scanUpload);
         el.addManualPartBtn.addEventListener('click', addManualPart);
         el.clearManualPartBtn.addEventListener('click', clearManualPartForm);
+        el.linkRelatedBtn.addEventListener('click', linkSelectedParts);
         el.mergeAllExactBtn.addEventListener('click', mergeAllExact);
         el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
