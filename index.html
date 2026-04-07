@@ -1238,14 +1238,46 @@
       if (updateError) throw updateError;
     }
 
+    function syncMergedPartLocally(existingId, uploaded) {
+      const idx = state.allParts.findIndex(p => p.id === existingId);
+      if (idx === -1) return;
+      const current = state.allParts[idx];
+      const currentVehicle = normalizeVehicleDisplay(current);
+      const uploadedVehicle = uploaded.vehicle || '';
+      const currentRelated = extractRelatedPartsFromNotes(current.notes);
+      const uploadedRelated = uploaded.related_parts || extractRelatedPartsFromNotes(uploaded.notes);
+
+      const merged = {
+        ...current,
+        ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
+        description: current.description || uploaded.description || '',
+        manufacturer: current.manufacturer || uploaded.manufacturer || '',
+        notes: combineNotesAndRelated(
+          appendNotePieces([current.notes, uploaded.notes, (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : '']),
+          [currentRelated, uploadedRelated].filter(Boolean).join(', ')
+        ),
+        uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
+      };
+
+      if (state.hasVehicleColumn) {
+        merged.vehicle = current.vehicle || uploadedVehicle || '';
+      } else if (!currentVehicle && uploadedVehicle) {
+        merged.notes = appendNotePieces([current.notes, uploaded.notes, `Vehicle: ${uploadedVehicle}`]);
+      }
+
+      state.allParts[idx] = merged;
+      applyFilters();
+    }
+
     window.mergeExact = async function(index) {
       try {
         const item = state.review.exactDuplicates[index];
         if (!item) return;
+        showMessage(el.uploadMessage, 'Merging exact duplicate...', 'warning');
         await mergeExisting(item.existing.id, item.uploaded);
+        syncMergedPartLocally(item.existing.id, item.uploaded);
         item.skip = true;
         renderReview();
-        await loadParts();
         showMessage(el.uploadMessage, 'Exact duplicate merged into existing part.', 'success');
       } catch (err) {
         showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
@@ -1261,10 +1293,11 @@
       try {
         const item = state.review.possibleDuplicates[index];
         if (!item) return;
+        showMessage(el.uploadMessage, 'Merging possible duplicate...', 'warning');
         await mergeExisting(item.existing.id, item.uploaded);
+        syncMergedPartLocally(item.existing.id, item.uploaded);
         item.skip = true;
         renderReview();
-        await loadParts();
         showMessage(el.uploadMessage, 'Possible duplicate merged into existing part.', 'success');
       } catch (err) {
         showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
