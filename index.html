@@ -1265,23 +1265,41 @@
       }
     }
 
+
     async function mergeExisting(existingId, uploaded) {
-      const { data: current, error: readError } = await state.supabase.from('parts').select('*').eq('id', existingId).single();
-      if (readError) throw readError;
+      const localCurrent = state.allParts.find(p => p.id === existingId);
+      let current = localCurrent || null;
+
+      if (!current) {
+        const { data, error: readError } = await state.supabase
+          .from('parts')
+          .select('*')
+          .eq('id', existingId)
+          .single();
+        if (readError) throw new Error(`Could not load existing part for merge: ${readError.message || readError}`);
+        current = data;
+      }
 
       const currentVehicle = normalizeVehicleDisplay(current);
       const uploadedVehicle = uploaded.vehicle || '';
 
       const currentRelated = extractRelatedPartsFromNotes(current.notes);
       const uploadedRelated = uploaded.related_parts || extractRelatedPartsFromNotes(uploaded.notes);
+
+      let mergedNotes = combineNotesAndRelated(
+        appendNotePieces([
+          current.notes,
+          uploaded.notes,
+          (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : ''
+        ]),
+        [currentRelated, uploadedRelated].filter(Boolean).join(', ')
+      );
+
       const updatePayload = {
         ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
         description: current.description || uploaded.description || '',
         manufacturer: current.manufacturer || uploaded.manufacturer || '',
-        notes: combineNotesAndRelated(
-          appendNotePieces([current.notes, uploaded.notes, (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : '']),
-          [currentRelated, uploadedRelated].filter(Boolean).join(', ')
-        ),
+        notes: mergedNotes,
         uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
       };
 
@@ -1291,20 +1309,39 @@
         updatePayload.notes = appendNotePieces([current.notes, uploaded.notes, `Vehicle: ${uploadedVehicle}`]);
       }
 
-      const { error: updateError } = await state.supabase.from('parts').update(updatePayload).eq('id', existingId);
-      if (updateError) throw updateError;
+      const { data: updatedRows, error: updateError } = await state.supabase
+        .from('parts')
+        .update(updatePayload)
+        .eq('id', existingId)
+        .select('*');
+
+      if (updateError) {
+        throw new Error(`Database merge failed: ${updateError.message || updateError}`);
+      }
+
+      if (!updatedRows || !updatedRows.length) {
+        throw new Error('Database merge did not return an updated row.');
+      }
+
+      return updatedRows[0];
     }
 
-    function syncMergedPartLocally(existingId, uploaded) {
+    function syncMergedPartLocally(existingId, uploaded, updatedRow) {
       const idx = state.allParts.findIndex(p => p.id === existingId);
+      if (idx === -1 && updatedRow) {
+        state.allParts.push(updatedRow);
+        applyFilters();
+        return;
+      }
       if (idx === -1) return;
+
       const current = state.allParts[idx];
       const currentVehicle = normalizeVehicleDisplay(current);
       const uploadedVehicle = uploaded.vehicle || '';
       const currentRelated = extractRelatedPartsFromNotes(current.notes);
       const uploadedRelated = uploaded.related_parts || extractRelatedPartsFromNotes(uploaded.notes);
 
-      const merged = {
+      const merged = updatedRow || {
         ...current,
         ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
         description: current.description || uploaded.description || '',
@@ -1316,10 +1353,12 @@
         uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
       };
 
-      if (state.hasVehicleColumn) {
-        merged.vehicle = current.vehicle || uploadedVehicle || '';
-      } else if (!currentVehicle && uploadedVehicle) {
-        merged.notes = appendNotePieces([current.notes, uploaded.notes, `Vehicle: ${uploadedVehicle}`]);
+      if (!updatedRow) {
+        if (state.hasVehicleColumn) {
+          merged.vehicle = current.vehicle || uploadedVehicle || '';
+        } else if (!currentVehicle && uploadedVehicle) {
+          merged.notes = appendNotePieces([current.notes, uploaded.notes, `Vehicle: ${uploadedVehicle}`]);
+        }
       }
 
       state.allParts[idx] = merged;
@@ -1331,13 +1370,14 @@
         const item = state.review.exactDuplicates[index];
         if (!item) return;
         showMessage(el.uploadMessage, 'Merging exact duplicate...', 'warning');
-        await mergeExisting(item.existing.id, item.uploaded);
-        syncMergedPartLocally(item.existing.id, item.uploaded);
+        const updatedRow = await mergeExisting(item.existing.id, item.uploaded);
+        syncMergedPartLocally(item.existing.id, item.uploaded, updatedRow);
         item.skip = true;
         renderReview();
         showMessage(el.uploadMessage, 'Exact duplicate merged into existing part.', 'success');
       } catch (err) {
-        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+        console.error(err);
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message || String(err))}`, 'error');
       }
     };
 
@@ -1351,13 +1391,14 @@
         const item = state.review.possibleDuplicates[index];
         if (!item) return;
         showMessage(el.uploadMessage, 'Merging possible duplicate...', 'warning');
-        await mergeExisting(item.existing.id, item.uploaded);
-        syncMergedPartLocally(item.existing.id, item.uploaded);
+        const updatedRow = await mergeExisting(item.existing.id, item.uploaded);
+        syncMergedPartLocally(item.existing.id, item.uploaded, updatedRow);
         item.skip = true;
         renderReview();
         showMessage(el.uploadMessage, 'Possible duplicate merged into existing part.', 'success');
       } catch (err) {
-        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+        console.error(err);
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message || String(err))}`, 'error');
       }
     };
 
@@ -1391,18 +1432,19 @@
         showMessage(el.uploadMessage, `Merging ${activeItems.length} items...`, 'warning');
         for (let i = 0; i < activeItems.length; i++) {
           const item = activeItems[i];
-          await mergeExisting(item.existing.id, item.uploaded);
+          const updatedRow = await mergeExisting(item.existing.id, item.uploaded);
+          syncMergedPartLocally(item.existing.id, item.uploaded, updatedRow);
           item.skip = true;
-          if ((i + 1) % 25 === 0) {
+          if ((i + 1) % 10 === 0 || i === activeItems.length - 1) {
             showMessage(el.uploadMessage, `Merging ${i + 1} of ${activeItems.length} items...`, 'warning');
             await new Promise(resolve => setTimeout(resolve, 0));
           }
         }
         renderReview();
-        await loadParts();
         showMessage(el.uploadMessage, successMessage.replace('{count}', activeItems.length), 'success');
       } catch (err) {
-        showMessage(el.uploadMessage, `Merge all error: ${escapeHtml(err.message)}`, 'error');
+        console.error(err);
+        showMessage(el.uploadMessage, `Merge all error: ${escapeHtml(err.message || String(err))}`, 'error');
       }
     }
 
