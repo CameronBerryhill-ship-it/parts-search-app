@@ -23,7 +23,7 @@
       background: linear-gradient(180deg, #020617 0%, #111827 100%);
       color: var(--text);
     }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 24px; }
     .card {
       background: rgba(17, 24, 39, 0.95);
       border: 1px solid var(--border);
@@ -36,8 +36,9 @@
     .grid { display: grid; gap: 16px; }
     .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     @media (max-width: 900px) {
-      .grid-2, .grid-3, .toolbar, .stats, .review-grid { grid-template-columns: 1fr !important; }
+      .grid-2, .grid-3, .grid-4, .toolbar, .stats, .review-grid { grid-template-columns: 1fr !important; }
     }
     input, select, button, textarea {
       width: 100%;
@@ -64,7 +65,7 @@
     button.danger { background: var(--danger); color: white; }
     .muted { color: var(--muted); }
     .hidden { display: none !important; }
-    .toolbar { display: grid; grid-template-columns: 2fr 1.3fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
+    .toolbar { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1fr; gap: 12px; align-items: end; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     .stat {
       background: #0b1220;
@@ -126,6 +127,20 @@
     .success { border-color: rgba(34,197,94,.4); }
     .warning { border-color: rgba(245,158,11,.4); }
     .error { border-color: rgba(239,68,68,.4); }
+    .progress {
+      height: 10px;
+      background: #0b1220;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+    .progress > div {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width .15s linear;
+    }
     .footer-space { height: 24px; }
   </style>
 </head>
@@ -133,7 +148,7 @@
   <div class="wrap">
     <div class="card">
       <h1>Shared Parts Database</h1>
-      <p class="muted">Users can upload parts, keep original part numbers intact, search, sort, and review duplicates before import.</p>
+      <p class="muted">Upload large parts files, keep part numbers exact, match parts to manufacturers, and filter by truck / model.</p>
       <div id="bootMessage"></div>
     </div>
 
@@ -183,18 +198,21 @@
         <div class="section-title">
           <div>
             <h2>Upload Parts List</h2>
-            <p class="muted">Supports CSV now and XLSX/XLS if SheetJS loads. Original part numbers stay exactly as entered.</p>
+            <p class="muted">Recognizes generic files and Middle Mile exports like PARTNUMBER, MFGCODE, LINEDESC, RO Count, Model Concat, and MM Category.</p>
           </div>
         </div>
         <div id="uploadMessage"></div>
-        <div class="grid grid-3">
+        <div id="scanProgressWrap" class="hidden">
+          <div class="progress"><div id="scanProgressBar"></div></div>
+        </div>
+        <div class="grid grid-3" style="margin-top: 12px;">
           <div>
             <label>Choose file</label>
             <input id="partsFile" type="file" accept=".csv,.xlsx,.xls" />
           </div>
           <div>
             <label>Expected columns</label>
-            <input value="Auto-detects files like PARTNUMBER, MFGCODE, LINEDESC, Model Concat, RO Count" readonly />
+            <input value="part_number / PARTNUMBER, description / LINEDESC, manufacturer / MFGCODE, vehicle / Model Concat, ro_count / RO Count" readonly />
           </div>
           <div>
             <label>Import action</label>
@@ -207,7 +225,7 @@
         <div class="section-title">
           <div>
             <h2>Upload Review</h2>
-            <p class="muted">Review exact duplicates and possible duplicates before importing.</p>
+            <p class="muted">Matches by part number + manufacturer. Same part number from different manufacturers stays separate.</p>
           </div>
           <div class="actions">
             <button id="importApprovedBtn" type="button">Import Approved New Parts</button>
@@ -226,7 +244,7 @@
         <div class="section-title">
           <div>
             <h2>Search and Sort Parts</h2>
-            <p class="muted">Search by part number, description, manufacturer, or truck. Filter by truck when that data exists in the file.</p>
+            <p class="muted">Search by part number, description, manufacturer, or truck / model.</p>
           </div>
         </div>
         <div class="toolbar">
@@ -237,7 +255,7 @@
           <div>
             <label>Truck / Model</label>
             <select id="vehicleFilter">
-              <option value="">All Trucks</option>
+              <option value="">All Trucks / Models</option>
             </select>
           </div>
           <div>
@@ -245,8 +263,9 @@
             <select id="sortBy">
               <option value="ro_count">RO Count</option>
               <option value="part_number_original">Part Number</option>
-              <option value="description">Description</option>
               <option value="manufacturer">Manufacturer</option>
+              <option value="vehicle">Truck / Model</option>
+              <option value="description">Description</option>
               <option value="created_at">Date Added</option>
               <option value="updated_at">Updated</option>
             </select>
@@ -279,7 +298,7 @@
                 <th data-sort="part_number_original">Part Number</th>
                 <th data-sort="description">Description</th>
                 <th data-sort="manufacturer">Manufacturer</th>
-                <th data-sort="vehicle_display">Truck / Model</th>
+                <th data-sort="vehicle">Truck / Model</th>
                 <th data-sort="ro_count">RO Count</th>
                 <th data-sort="created_at">Added</th>
                 <th data-sort="updated_at">Updated</th>
@@ -300,13 +319,17 @@
     const SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
 
+    const REVIEW_PAGE_SIZE = 40;
+
     const state = {
       user: null,
       allParts: [],
       filteredParts: [],
       review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
-      reviewDisplay: { exactLimit: 25, possibleLimit: 25, newLimit: 25 },
-      supabase: null
+      reviewVisible: { newParts: REVIEW_PAGE_SIZE, exactDuplicates: REVIEW_PAGE_SIZE, possibleDuplicates: REVIEW_PAGE_SIZE },
+      supabase: null,
+      hasVehicleColumn: false,
+      isScanning: false
     };
 
     const el = {
@@ -315,6 +338,8 @@
       appShell: document.getElementById('appShell'),
       authMessage: document.getElementById('authMessage'),
       uploadMessage: document.getElementById('uploadMessage'),
+      scanProgressWrap: document.getElementById('scanProgressWrap'),
+      scanProgressBar: document.getElementById('scanProgressBar'),
       email: document.getElementById('email'),
       password: document.getElementById('password'),
       loginBtn: document.getElementById('loginBtn'),
@@ -327,7 +352,6 @@
       statTopRO: document.getElementById('statTopRO'),
       statPending: document.getElementById('statPending'),
       partsFile: document.getElementById('partsFile'),
-      vehicleFilter: document.getElementById('vehicleFilter'),
       scanUploadBtn: document.getElementById('scanUploadBtn'),
       reviewCard: document.getElementById('reviewCard'),
       reviewNew: document.getElementById('reviewNew'),
@@ -337,6 +361,7 @@
       reviewList: document.getElementById('reviewList'),
       importApprovedBtn: document.getElementById('importApprovedBtn'),
       searchInput: document.getElementById('searchInput'),
+      vehicleFilter: document.getElementById('vehicleFilter'),
       sortBy: document.getElementById('sortBy'),
       sortDirection: document.getElementById('sortDirection'),
       partsTbody: document.getElementById('partsTbody'),
@@ -345,6 +370,10 @@
 
     function showMessage(target, text, type = 'success') {
       target.innerHTML = text ? `<div class="notice ${type}">${text}</div>` : '';
+    }
+
+    function setProgress(percent) {
+      el.scanProgressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
     }
 
     function escapeHtml(value) {
@@ -358,6 +387,18 @@
 
     function normalizePartNumber(partNumber = '') {
       return String(partNumber).toUpperCase().replace(/[\s\-./]/g, '').trim();
+    }
+
+    function normalizeManufacturer(value = '') {
+      return String(value).trim().toUpperCase();
+    }
+
+    function buildPartManufacturerKey(partNumberOriginal, manufacturer) {
+      return `${String(partNumberOriginal || '').trim()}|${normalizeManufacturer(manufacturer)}`;
+    }
+
+    function buildNormalizedManufacturerKey(partNumberNormalized, manufacturer) {
+      return `${String(partNumberNormalized || '').trim()}|${normalizeManufacturer(manufacturer)}`;
     }
 
     function parseCSV(text) {
@@ -416,87 +457,50 @@
       return '';
     }
 
-    function cleanVehicleValue(value = '') {
-      return String(value || '').replace(/\s+/g, ' ').trim();
-    }
-
-    function parseMetaFromNotes(notes = '') {
-      const out = {};
-      String(notes || '').split(' | ').forEach(part => {
-        const idx = part.indexOf(':');
-        if (idx === -1) return;
-        const key = part.slice(0, idx).trim();
-        const value = part.slice(idx + 1).trim();
-        if (key && value) out[key] = value;
-      });
-      return out;
-    }
-
-    function getVehicleValue(part = {}) {
-      return cleanVehicleValue(part.vehicle || parseMetaFromNotes(part.notes || '')['Model Concat'] || parseMetaFromNotes(part.notes || '')['Vehicle'] || '');
-    }
-
-    function buildImportedNotes(row) {
-      const extraPairs = [
-        ['Model Concat', ['Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat', 'vehicle', 'Vehicle', 'truck', 'Truck']],
-        ['MM Category', ['MM Category', 'MM CATEGORY', 'mm category', 'mm_category', 'category', 'Category']],
-        ['Last Used Cost', ['Last Used Cost', 'LAST USED COST', 'last used cost', 'LastUsedCost', 'last_used_cost']],
-        ['LastUsedPart_CHGAMT', ['LastUsedPart_CHGAMT', 'Last Used Part CHGAMT', 'LASTUSEDPART_CHGAMT', 'lastusedpart_chgamt', 'charge_amount']]
-      ];
-      const extras = extraPairs
-        .map(([label, keys]) => {
-          const value = readRowValue(row, keys);
-          const cleaned = label === 'Model Concat' ? cleanVehicleValue(value) : value;
-          return cleaned ? `${label}: ${cleaned}` : '';
-        })
-        .filter(Boolean);
-      return extras.join(' | ');
-    }
-
-    function populateVehicleFilter() {
-      const selected = el.vehicleFilter.value;
-      const vehicles = [...new Set(state.allParts.map(getVehicleValue).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      el.vehicleFilter.innerHTML = '<option value="">All Trucks</option>' + vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-      if (vehicles.includes(selected)) el.vehicleFilter.value = selected;
-    }
-
-    function normalizeManufacturerKey(value = '') {
-      return String(value || '').trim().toUpperCase();
-    }
-
-    function buildExistingLookup(parts) {
-      const exactMap = new Map();
-      const normalizedMap = new Map();
-      const normalizedAnyManufacturerMap = new Map();
-
-      parts.forEach(part => {
-        const exactPart = String(part.part_number_original || '').trim();
-        const normalizedPart = String(part.part_number_normalized || '').trim();
-        const manufacturerKey = normalizeManufacturerKey(part.manufacturer || '');
-
-        const exactKey = `${exactPart}__${manufacturerKey}`;
-        const normalizedKey = `${normalizedPart}__${manufacturerKey}`;
-
-        if (exactPart && !exactMap.has(exactKey)) exactMap.set(exactKey, part);
-        if (normalizedPart && !normalizedMap.has(normalizedKey)) normalizedMap.set(normalizedKey, part);
-        if (normalizedPart && !normalizedAnyManufacturerMap.has(normalizedPart)) normalizedAnyManufacturerMap.set(normalizedPart, part);
-      });
-
-      return { exactMap, normalizedMap, normalizedAnyManufacturerMap };
-    }
-
-
     function formatDate(value) {
       if (!value) return '';
       const d = new Date(value);
       return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
     }
 
+    function normalizeVehicleDisplay(part) {
+      return part.vehicle || extractVehicleFromNotes(part.notes) || '';
+    }
+
+    function extractVehicleFromNotes(notes = '') {
+      const match = String(notes || '').match(/(?:^|\|\s*)Vehicle:\s*([^|]+)/i);
+      return match ? match[1].trim() : '';
+    }
+
+    function appendNotePieces(parts) {
+      return parts.map(x => String(x || '').trim()).filter(Boolean).join(' | ');
+    }
+
+    function buildStoredRecord(payload) {
+      const record = {
+        part_number_original: payload.part_number_original,
+        part_number_normalized: payload.part_number_normalized,
+        description: payload.description || '',
+        manufacturer: payload.manufacturer || '',
+        ro_count: Number(payload.ro_count || 0),
+        notes: payload.notes || '',
+        uploaded_by: payload.uploaded_by || null
+      };
+      if (state.hasVehicleColumn) {
+        record.vehicle = payload.vehicle || '';
+      } else if (payload.vehicle) {
+        record.notes = appendNotePieces([record.notes, `Vehicle: ${payload.vehicle}`]);
+      }
+      return record;
+    }
+
     function updateStats() {
       el.statTotal.textContent = state.allParts.length;
       el.statFiltered.textContent = state.filteredParts.length;
       el.statTopRO.textContent = state.allParts.length ? Math.max(...state.allParts.map(p => Number(p.ro_count || 0))) : 0;
-      el.statPending.textContent = state.review.exactDuplicates.filter(x => !x.skip).length + state.review.possibleDuplicates.filter(x => !x.skip).length;
+      el.statPending.textContent =
+        state.review.exactDuplicates.filter(x => !x.skip).length +
+        state.review.possibleDuplicates.filter(x => !x.skip).length;
     }
 
     function renderPartsTable() {
@@ -509,7 +513,7 @@
           <td>${escapeHtml(part.part_number_original)}</td>
           <td>${escapeHtml(part.description || '')}</td>
           <td>${escapeHtml(part.manufacturer || '')}</td>
-          <td>${escapeHtml(getVehicleValue(part))}</td>
+          <td>${escapeHtml(normalizeVehicleDisplay(part))}</td>
           <td>${escapeHtml(part.ro_count || 0)}</td>
           <td>${escapeHtml(formatDate(part.created_at))}</td>
           <td>${escapeHtml(formatDate(part.updated_at))}</td>
@@ -517,26 +521,37 @@
         </tr>`).join('');
     }
 
+    function populateVehicleFilter() {
+      const vehicles = [...new Set(state.allParts.map(normalizeVehicleDisplay).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      const current = el.vehicleFilter.value;
+      el.vehicleFilter.innerHTML = '<option value="">All Trucks / Models</option>' +
+        vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+      if (vehicles.includes(current)) el.vehicleFilter.value = current;
+    }
+
     function applyFilters() {
       const q = el.searchInput.value.trim().toLowerCase();
-      const vehicleFilter = el.vehicleFilter.value.trim();
       const sortBy = el.sortBy.value;
       const direction = el.sortDirection.value;
+      const selectedVehicle = el.vehicleFilter.value;
       let parts = [...state.allParts];
+
+      if (selectedVehicle) {
+        parts = parts.filter(part => normalizeVehicleDisplay(part) === selectedVehicle);
+      }
+
       if (q) {
         parts = parts.filter(part =>
           String(part.part_number_original || '').toLowerCase().includes(q) ||
           String(part.description || '').toLowerCase().includes(q) ||
           String(part.manufacturer || '').toLowerCase().includes(q) ||
-          getVehicleValue(part).toLowerCase().includes(q)
+          String(normalizeVehicleDisplay(part) || '').toLowerCase().includes(q)
         );
       }
-      if (vehicleFilter) {
-        parts = parts.filter(part => getVehicleValue(part) === vehicleFilter);
-      }
+
       parts.sort((a, b) => {
-        let av = sortBy === 'vehicle_display' ? getVehicleValue(a) : (a[sortBy] ?? '');
-        let bv = sortBy === 'vehicle_display' ? getVehicleValue(b) : (b[sortBy] ?? '');
+        let av = sortBy === 'vehicle' ? normalizeVehicleDisplay(a) : (a[sortBy] ?? '');
+        let bv = sortBy === 'vehicle' ? normalizeVehicleDisplay(b) : (b[sortBy] ?? '');
         if (sortBy === 'ro_count') {
           av = Number(av || 0); bv = Number(bv || 0);
           return direction === 'asc' ? av - bv : bv - av;
@@ -546,6 +561,7 @@
         if (av > bv) return direction === 'asc' ? 1 : -1;
         return 0;
       });
+
       state.filteredParts = parts;
       renderPartsTable();
       updateStats();
@@ -580,6 +596,15 @@
       return allParts;
     }
 
+    async function detectVehicleColumn() {
+      try {
+        const { error } = await state.supabase.from('parts').select('vehicle').limit(1);
+        state.hasVehicleColumn = !error;
+      } catch (_) {
+        state.hasVehicleColumn = false;
+      }
+    }
+
     async function loadParts() {
       state.allParts = await fetchAllParts('ro_count', false);
       populateVehicleFilter();
@@ -588,142 +613,177 @@
 
     function resetReview() {
       state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
-      state.reviewDisplay = { exactLimit: 25, possibleLimit: 25, newLimit: 25 };
+      state.reviewVisible = { newParts: REVIEW_PAGE_SIZE, exactDuplicates: REVIEW_PAGE_SIZE, possibleDuplicates: REVIEW_PAGE_SIZE };
       el.reviewCard.classList.add('hidden');
       el.reviewList.innerHTML = '';
       updateStats();
     }
 
+    function renderReviewSection(title, type, badgeClass, items, itemRenderer) {
+      const activeItems = items.filter(x => !x.skip);
+      if (!activeItems.length) return '';
+
+      const visibleCount = state.reviewVisible[type] || REVIEW_PAGE_SIZE;
+      const visibleItems = activeItems.slice(0, visibleCount);
+      let html = `<h3>${title}</h3>`;
+      visibleItems.forEach((item, index) => {
+        const realIndex = items.indexOf(item);
+        html += itemRenderer(item, realIndex, badgeClass);
+      });
+
+      if (activeItems.length > visibleCount) {
+        html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('${type}')">Show More (${activeItems.length - visibleCount} remaining)</button></div>`;
+      }
+      return html;
+    }
+
     function renderReview() {
       el.reviewCard.classList.remove('hidden');
-      const activeNew = state.review.newParts.filter(x => !x.skip);
-      const activeExact = state.review.exactDuplicates.filter(x => !x.skip);
-      const activePossible = state.review.possibleDuplicates.filter(x => !x.skip);
-
-      el.reviewNew.textContent = activeNew.length;
-      el.reviewExact.textContent = activeExact.length;
-      el.reviewPossible.textContent = activePossible.length;
+      el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
+      el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
+      el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
       el.reviewRows.textContent = state.review.rowsScanned;
 
       let html = '';
+      html += renderReviewSection('Exact Duplicates', 'exactDuplicates', 'red', state.review.exactDuplicates, (item, index) => `
+        <div class="review-item">
+          <span class="pill red">Exact Duplicate</span>
+          <div class="review-grid" style="margin-top:10px;">
+            <div>
+              <h4>Uploaded</h4>
+              <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+              <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+              <p><strong>Truck / Model:</strong> ${escapeHtml(item.uploaded.vehicle || '')}</p>
+              <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
+            </div>
+            <div>
+              <h4>Existing</h4>
+              <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+              <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+              <p><strong>Truck / Model:</strong> ${escapeHtml(normalizeVehicleDisplay(item.existing))}</p>
+              <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" onclick="mergeExact(${index})">Merge Into Existing</button>
+            <button type="button" class="secondary" onclick="skipExact(${index})">Skip</button>
+          </div>
+        </div>`);
 
-      const exactToShow = activeExact.slice(0, state.reviewDisplay.exactLimit);
-      if (activeExact.length) {
-        html += `<h3>Exact Duplicates</h3>`;
-        if (activeExact.length > exactToShow.length) {
-          html += `<div class="notice warning">Showing ${exactToShow.length} of ${activeExact.length} exact duplicates to keep the page fast.</div>`;
-        }
-        exactToShow.forEach(item => {
-          const index = state.review.exactDuplicates.indexOf(item);
-          html += `<div class="review-item">
-            <span class="pill red">Exact Duplicate</span>
-            <div class="review-grid" style="margin-top:10px;">
-              <div>
-                <h4>Uploaded</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
-              </div>
-              <div>
-                <h4>Existing</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
-              </div>
+      html += renderReviewSection('Possible Duplicates', 'possibleDuplicates', 'orange', state.review.possibleDuplicates, (item, index) => `
+        <div class="review-item">
+          <span class="pill orange">Possible Duplicate</span>
+          <div class="review-grid" style="margin-top:10px;">
+            <div>
+              <h4>Uploaded</h4>
+              <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+              <p><strong>Normalized:</strong> ${escapeHtml(item.uploaded.part_number_normalized)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+              <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+              <p><strong>Truck / Model:</strong> ${escapeHtml(item.uploaded.vehicle || '')}</p>
+              <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
             </div>
-            <div class="actions">
-              <button type="button" onclick="mergeExact(${index})">Merge Into Existing</button>
-              <button type="button" class="secondary" onclick="skipExact(${index})">Skip</button>
+            <div>
+              <h4>Existing</h4>
+              <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+              <p><strong>Normalized:</strong> ${escapeHtml(item.existing.part_number_normalized)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+              <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+              <p><strong>Truck / Model:</strong> ${escapeHtml(normalizeVehicleDisplay(item.existing))}</p>
+              <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
             </div>
-          </div>`;
-        });
-        if (activeExact.length > exactToShow.length) {
-          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('exact')">Show More Exact Duplicates</button></div>`;
-        }
-      }
+          </div>
+          <div class="actions">
+            <button type="button" onclick="mergePossible(${index})">Merge Into Existing</button>
+            <button type="button" class="warn" onclick="keepSeparate(${index})">Keep Separate and Add New</button>
+            <button type="button" class="secondary" onclick="skipPossible(${index})">Skip</button>
+          </div>
+        </div>`);
 
-      const possibleToShow = activePossible.slice(0, state.reviewDisplay.possibleLimit);
-      if (activePossible.length) {
-        html += `<h3>Possible Duplicates</h3>`;
-        if (activePossible.length > possibleToShow.length) {
-          html += `<div class="notice warning">Showing ${possibleToShow.length} of ${activePossible.length} possible duplicates to keep the page fast.</div>`;
-        }
-        possibleToShow.forEach(item => {
-          const index = state.review.possibleDuplicates.indexOf(item);
-          html += `<div class="review-item">
-            <span class="pill orange">Possible Duplicate</span>
-            <div class="review-grid" style="margin-top:10px;">
-              <div>
-                <h4>Uploaded</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
-                <p><strong>Normalized:</strong> ${escapeHtml(item.uploaded.part_number_normalized)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
-              </div>
-              <div>
-                <h4>Existing</h4>
-                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
-                <p><strong>Normalized:</strong> ${escapeHtml(item.existing.part_number_normalized)}</p>
-                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
-                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
-                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
-              </div>
-            </div>
-            <div class="actions">
-              <button type="button" onclick="mergePossible(${index})">Merge Into Existing</button>
-              <button type="button" class="warn" onclick="keepSeparate(${index})">Keep Separate and Add New</button>
-              <button type="button" class="secondary" onclick="skipPossible(${index})">Skip</button>
-            </div>
-          </div>`;
-        });
-        if (activePossible.length > possibleToShow.length) {
-          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('possible')">Show More Possible Duplicates</button></div>`;
-        }
-      }
-
-      const newToShow = activeNew.slice(0, state.reviewDisplay.newLimit);
-      if (activeNew.length) {
-        html += `<h3>New Parts Ready to Import</h3>`;
-        if (activeNew.length > newToShow.length) {
-          html += `<div class="notice warning">Showing ${newToShow.length} of ${activeNew.length} new parts to keep the page fast.</div>`;
-        }
-        newToShow.forEach(item => {
-          html += `<div class="review-item">
-            <span class="pill green">New Part</span>
-            <div style="margin-top:10px;">
-              <p><strong>Part #:</strong> ${escapeHtml(item.part_number_original)}</p>
-              <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
-              <p><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer)}</p>
-              <p><strong>RO Count:</strong> ${escapeHtml(item.ro_count)}</p>
-            </div>
-          </div>`;
-        });
-        if (activeNew.length > newToShow.length) {
-          html += `<div class="actions"><button type="button" class="secondary" onclick="showMoreReview('new')">Show More New Parts</button></div>`;
-        }
-      }
+      html += renderReviewSection('New Parts Ready to Import', 'newParts', 'green', state.review.newParts, (item) => `
+        <div class="review-item">
+          <span class="pill green">New Part</span>
+          <div style="margin-top:10px;">
+            <p><strong>Part #:</strong> ${escapeHtml(item.part_number_original)}</p>
+            <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
+            <p><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer)}</p>
+            <p><strong>Truck / Model:</strong> ${escapeHtml(item.vehicle || '')}</p>
+            <p><strong>RO Count:</strong> ${escapeHtml(item.ro_count)}</p>
+          </div>
+        </div>`);
 
       if (!html) html = '<div class="notice success">Nothing left to review.</div>';
       el.reviewList.innerHTML = html;
       updateStats();
     }
 
-    window.showMoreReview = function(type) {
-      if (type === 'exact') state.reviewDisplay.exactLimit += 25;
-      if (type === 'possible') state.reviewDisplay.possibleLimit += 25;
-      if (type === 'new') state.reviewDisplay.newLimit += 25;
-      renderReview();
-    };
+    function buildPayloadFromRow(row) {
+      const original = readRowValue(row, [
+        'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber', 'PARTNUMBER'
+      ]);
+
+      if (!original) return null;
+
+      const manufacturer = readRowValue(row, [
+        'manufacturer', 'Manufacturer', 'brand', 'Brand', 'MFGCODE', 'MfgCode'
+      ]);
+
+      const description = readRowValue(row, [
+        'description', 'Description', 'DESC', 'desc', 'LINEDESC', 'LineDesc'
+      ]);
+
+      const roCountRaw = readRowValue(row, [
+        'ro_count', 'RO Count', 'ro count', 'RO_COUNT', 'ROCOUNT'
+      ]);
+
+      const vehicle = readRowValue(row, [
+        'vehicle', 'Vehicle', 'truck', 'Truck', 'model', 'Model', 'Model Concat', 'MODEL CONCAT', 'ModelConcat'
+      ]);
+
+      const category = readRowValue(row, [
+        'MM Category', 'mm category', 'category', 'Category'
+      ]);
+
+      const modelConcat = readRowValue(row, ['Model Concat', 'MODEL CONCAT', 'ModelConcat']);
+      const lastUsedCost = readRowValue(row, ['Last Used Cost', 'LAST USED COST', 'LastUsedCost']);
+      const lastUsedPartCharge = readRowValue(row, ['LastUsedPart_CHGAMT', 'LastUsedPart CHGAMT', 'LASTUSEDPART_CHGAMT']);
+      const notesBase = readRowValue(row, ['notes', 'Notes']);
+
+      const normalized = normalizePartNumber(original);
+      const finalVehicle = vehicle || modelConcat || '';
+
+      return {
+        part_number_original: original,
+        part_number_normalized: normalized,
+        description,
+        manufacturer,
+        vehicle: finalVehicle,
+        ro_count: Number(roCountRaw || 0),
+        notes: appendNotePieces([
+          notesBase,
+          category ? `Category: ${category}` : '',
+          lastUsedCost ? `Last Used Cost: ${lastUsedCost}` : '',
+          lastUsedPartCharge ? `Last Used Charge: ${lastUsedPartCharge}` : ''
+        ]),
+        uploaded_by: state.user?.id || null
+      };
+    }
 
     async function scanUpload() {
+      if (state.isScanning) return;
       try {
-        showMessage(el.uploadMessage, 'Scanning file. Large files can take a minute...', 'warning');
+        showMessage(el.uploadMessage, '', 'success');
         resetReview();
         const file = el.partsFile.files[0];
         if (!file) return showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
+
+        state.isScanning = true;
+        el.scanUploadBtn.disabled = true;
+        el.scanProgressWrap.classList.remove('hidden');
+        setProgress(0);
+        showMessage(el.uploadMessage, 'Scanning file. Large files can take a minute...', 'warning');
 
         const rows = await fileToRows(file);
         if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
@@ -731,85 +791,80 @@
         state.review.rowsScanned = rows.length;
 
         const existing = await fetchAllParts('ro_count', false);
-        const { exactMap, normalizedMap, normalizedAnyManufacturerMap } = buildExistingLookup(existing);
+        const exactMap = new Map();
+        const normalizedMap = new Map();
 
-        rows.forEach(row => {
-          const original = readRowValue(row, [
-            'part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber',
-            'PARTNUMBER', 'PartNumber', 'Part Num', 'PART NUM'
-          ]);
-          const description = readRowValue(row, [
-            'description', 'Description', 'DESC', 'desc',
-            'LINEDESC', 'LineDesc', 'LINE DESC', 'line description'
-          ]);
-          const manufacturer = readRowValue(row, [
-            'manufacturer', 'Manufacturer', 'brand', 'Brand',
-            'MFGCODE', 'MfgCode', 'MFG Code', 'mfgcode', 'vendor', 'Vendor'
-          ]);
-          const roCountRaw = readRowValue(row, [
-            'ro_count', 'RO Count', 'ro count', 'RO_COUNT',
-            'ROCOUNT', 'Ro Count'
-          ]);
-          const vehicle = cleanVehicleValue(readRowValue(row, [
-            'Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat',
-            'vehicle', 'Vehicle', 'truck', 'Truck'
-          ]));
-          const notes = [readRowValue(row, ['notes', 'Notes']), buildImportedNotes(row)].filter(Boolean).join(' | ');
-
-          if (!original) return;
-
-          const normalized = normalizePartNumber(original);
-          const payload = {
-            part_number_original: original,
-            part_number_normalized: normalized,
-            description,
-            manufacturer,
-            vehicle,
-            ro_count: Number(roCountRaw || 0),
-            notes,
-            uploaded_by: state.user?.id || null
-          };
-
-          const manufacturerKey = normalizeManufacturerKey(manufacturer);
-          const exact = exactMap.get(`${String(original).trim()}__${manufacturerKey}`);
-          if (exact) {
-            state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
-            return;
-          }
-
-          const possible = normalizedMap.get(`${normalized}__${manufacturerKey}`);
-          if (possible && String(possible.part_number_original || '').trim() !== String(original).trim()) {
-            state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
-            return;
-          }
-
-          const manufacturerConflict = normalizedAnyManufacturerMap.get(normalized);
-          if (manufacturerConflict) {
-            state.review.possibleDuplicates.push({ uploaded: payload, existing: manufacturerConflict, skip: false });
-            return;
-          }
-
-          state.review.newParts.push({ ...payload, skip: false });
+        existing.forEach(part => {
+          exactMap.set(buildPartManufacturerKey(part.part_number_original, part.manufacturer), part);
+          normalizedMap.set(buildNormalizedManufacturerKey(part.part_number_normalized, part.manufacturer), part);
         });
+
+        const uploadExactMap = new Map();
+        const uploadNormalizedMap = new Map();
+
+        const batchSize = 500;
+        for (let i = 0; i < rows.length; i++) {
+          const payload = buildPayloadFromRow(rows[i]);
+          if (payload) {
+            const exactKey = buildPartManufacturerKey(payload.part_number_original, payload.manufacturer);
+            const normKey = buildNormalizedManufacturerKey(payload.part_number_normalized, payload.manufacturer);
+
+            const exact = exactMap.get(exactKey) || uploadExactMap.get(exactKey);
+            if (exact) {
+              state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
+            } else {
+              const possible = normalizedMap.get(normKey) || uploadNormalizedMap.get(normKey);
+              if (possible) {
+                state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+              } else {
+                state.review.newParts.push({ ...payload, skip: false });
+                uploadExactMap.set(exactKey, payload);
+                uploadNormalizedMap.set(normKey, payload);
+              }
+            }
+          }
+
+          if ((i + 1) % batchSize === 0 || i === rows.length - 1) {
+            const pct = ((i + 1) / rows.length) * 100;
+            setProgress(pct);
+            showMessage(el.uploadMessage, `Scanning file... ${i + 1.toLocaleString()} / ${rows.length.toLocaleString()} rows`, 'warning');
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
 
         renderReview();
         showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
       } catch (err) {
         console.error(err);
         showMessage(el.uploadMessage, `Scan error: ${escapeHtml(err.message)}`, 'error');
+      } finally {
+        state.isScanning = false;
+        el.scanUploadBtn.disabled = false;
+        setProgress(100);
       }
     }
 
     async function mergeExisting(existingId, uploaded) {
       const { data: current, error: readError } = await state.supabase.from('parts').select('*').eq('id', existingId).single();
       if (readError) throw readError;
+
+      const currentVehicle = normalizeVehicleDisplay(current);
+      const uploadedVehicle = uploaded.vehicle || '';
+
       const updatePayload = {
         ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
         description: current.description || uploaded.description || '',
         manufacturer: current.manufacturer || uploaded.manufacturer || '',
-        notes: [current.notes, uploaded.notes].filter(Boolean).join(' | '),
+        notes: appendNotePieces([current.notes, uploaded.notes, (!state.hasVehicleColumn && uploadedVehicle) ? `Vehicle: ${uploadedVehicle}` : '']),
         uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
       };
+
+      if (state.hasVehicleColumn) {
+        updatePayload.vehicle = current.vehicle || uploadedVehicle || '';
+      } else if (!currentVehicle && uploadedVehicle) {
+        updatePayload.notes = appendNotePieces([current.notes, uploaded.notes, `Vehicle: ${uploadedVehicle}`]);
+      }
+
       const { error: updateError } = await state.supabase.from('parts').update(updatePayload).eq('id', existingId);
       if (updateError) throw updateError;
     }
@@ -827,7 +882,12 @@
         showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
       }
     };
-    window.skipExact = function(index) { const item = state.review.exactDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
+
+    window.skipExact = function(index) {
+      const item = state.review.exactDuplicates[index];
+      if (item) { item.skip = true; renderReview(); }
+    };
+
     window.mergePossible = async function(index) {
       try {
         const item = state.review.possibleDuplicates[index];
@@ -841,43 +901,62 @@
         showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
       }
     };
+
     window.keepSeparate = function(index) {
       const item = state.review.possibleDuplicates[index];
-      if (item) { state.review.newParts.push({ ...item.uploaded, skip: false }); item.skip = true; renderReview(); }
+      if (item) {
+        state.review.newParts.push({ ...item.uploaded, skip: false });
+        item.skip = true;
+        renderReview();
+      }
     };
-    window.skipPossible = function(index) { const item = state.review.possibleDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
+
+    window.skipPossible = function(index) {
+      const item = state.review.possibleDuplicates[index];
+      if (item) { item.skip = true; renderReview(); }
+    };
+
+    window.showMoreReview = function(type) {
+      state.reviewVisible[type] = (state.reviewVisible[type] || REVIEW_PAGE_SIZE) + REVIEW_PAGE_SIZE;
+      renderReview();
+    };
 
     async function importApproved() {
       try {
-        const supportsVehicleColumn = state.allParts.some(part => Object.prototype.hasOwnProperty.call(part, 'vehicle'));
-        const payload = state.review.newParts.filter(x => !x.skip).map(item => {
-          const row = {
-            part_number_original: item.part_number_original,
-            part_number_normalized: item.part_number_normalized,
-            description: item.description,
-            manufacturer: item.manufacturer,
-            ro_count: Number(item.ro_count || 0),
-            notes: item.notes,
-            uploaded_by: state.user?.id || null
-          };
-          if (supportsVehicleColumn) row.vehicle = item.vehicle || '';
-          return row;
-        });
+        const payload = state.review.newParts
+          .filter(x => !x.skip)
+          .map(item => buildStoredRecord(item));
+
         if (!payload.length) return showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
-        const { error } = await state.supabase.from('parts').insert(payload);
-        if (error) throw error;
+
+        const chunkSize = 1000;
+        for (let i = 0; i < payload.length; i += chunkSize) {
+          const chunk = payload.slice(i, i + chunkSize);
+          const { error } = await state.supabase.from('parts').insert(chunk);
+          if (error) throw error;
+          showMessage(el.uploadMessage, `Importing... ${Math.min(i + chunk.length, payload.length).toLocaleString()} / ${payload.length.toLocaleString()}`, 'warning');
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
         state.review.newParts.forEach(item => item.skip = true);
         renderReview();
         await loadParts();
-        showMessage(el.uploadMessage, `${payload.length} new parts imported.`, 'success');
+        showMessage(el.uploadMessage, `${payload.length.toLocaleString()} new parts imported.`, 'success');
       } catch (err) {
         showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
       }
     }
 
     function downloadCsv(filename, rows) {
-      const headers = ['part_number_original', 'description', 'manufacturer', 'vehicle_display', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
-      const csv = [headers.join(',')].concat(rows.map(row => headers.map(key => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))).join('\n');
+      const headers = ['part_number_original', 'description', 'manufacturer', 'vehicle', 'ro_count', 'created_at', 'updated_at', 'uploaded_by', 'notes'];
+      const csv = [headers.join(',')].concat(rows.map(row => {
+        const exportRow = {
+          ...row,
+          vehicle: normalizeVehicleDisplay(row)
+        };
+        return headers.map(key => `"${String(exportRow[key] ?? '').replace(/"/g, '""')}"`).join(',');
+      })).join('\n');
+
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -895,7 +974,11 @@
       el.userLine.textContent = `Signed in as ${state.user.email}`;
       showMessage(el.authMessage, '', 'success');
       try {
+        await detectVehicleColumn();
         await loadParts();
+        if (!state.hasVehicleColumn) {
+          showMessage(el.bootMessage, 'App loaded. Vehicle column not found in database yet. Truck / model will still be saved in notes until you add the vehicle column.', 'warning');
+        }
       } catch (err) {
         showMessage(el.uploadMessage, `Logged in, but parts table could not load. Run the SQL setup in Supabase first. Error: ${escapeHtml(err.message)}`, 'error');
       }
@@ -908,6 +991,7 @@
         const email = el.email.value.trim();
         const password = el.password.value;
         if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
+
         const { data, error } = await state.supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (!data.user) throw new Error('Login returned no user.');
@@ -924,15 +1008,24 @@
         const email = el.email.value.trim();
         const password = el.password.value;
         if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
+
+        el.signupBtn.disabled = true;
         const { data, error } = await state.supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.user) {
-          showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
-        } else {
-          showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
+
+        if (error) {
+          const msg = String(error.message || '').toLowerCase();
+          if (msg.includes('rate limit')) {
+            return showMessage(el.authMessage, 'Too many signup attempts. Wait a few minutes or try logging in if the account already exists.', 'warning');
+          }
+          return showMessage(el.authMessage, `Sign up failed: ${escapeHtml(error.message)}`, 'error');
         }
+
+        if (data.user) showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
+        else showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
       } catch (err) {
-        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
+        showMessage(el.authMessage, 'Unexpected error creating account.', 'error');
+      } finally {
+        setTimeout(() => { el.signupBtn.disabled = false; }, 3000);
       }
     }
 
@@ -980,8 +1073,13 @@
         el.signupBtn.addEventListener('click', signup);
         el.logoutBtn.addEventListener('click', logout);
         el.refreshBtn.addEventListener('click', async () => {
-          try { await loadParts(); showMessage(el.uploadMessage, 'Refreshed.', 'success'); }
-          catch (err) { showMessage(el.uploadMessage, `Refresh failed: ${escapeHtml(err.message)}`, 'error'); }
+          try {
+            await detectVehicleColumn();
+            await loadParts();
+            showMessage(el.uploadMessage, 'Refreshed.', 'success');
+          } catch (err) {
+            showMessage(el.uploadMessage, `Refresh failed: ${escapeHtml(err.message)}`, 'error');
+          }
         });
         el.scanUploadBtn.addEventListener('click', scanUpload);
         el.importApprovedBtn.addEventListener('click', importApproved);
