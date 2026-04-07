@@ -424,19 +424,29 @@
       return extras.join(' | ');
     }
 
+    function normalizeManufacturerKey(value = '') {
+      return String(value || '').trim().toUpperCase();
+    }
+
     function buildExistingLookup(parts) {
       const exactMap = new Map();
       const normalizedMap = new Map();
+      const normalizedAnyManufacturerMap = new Map();
 
       parts.forEach(part => {
-        const exactKey = String(part.part_number_original || '').trim();
-        const normalizedKey = String(part.part_number_normalized || '').trim();
+        const exactPart = String(part.part_number_original || '').trim();
+        const normalizedPart = String(part.part_number_normalized || '').trim();
+        const manufacturerKey = normalizeManufacturerKey(part.manufacturer || '');
 
-        if (exactKey && !exactMap.has(exactKey)) exactMap.set(exactKey, part);
-        if (normalizedKey && !normalizedMap.has(normalizedKey)) normalizedMap.set(normalizedKey, part);
+        const exactKey = `${exactPart}__${manufacturerKey}`;
+        const normalizedKey = `${normalizedPart}__${manufacturerKey}`;
+
+        if (exactPart && !exactMap.has(exactKey)) exactMap.set(exactKey, part);
+        if (normalizedPart && !normalizedMap.has(normalizedKey)) normalizedMap.set(normalizedKey, part);
+        if (normalizedPart && !normalizedAnyManufacturerMap.has(normalizedPart)) normalizedAnyManufacturerMap.set(normalizedPart, part);
       });
 
-      return { exactMap, normalizedMap };
+      return { exactMap, normalizedMap, normalizedAnyManufacturerMap };
     }
 
 
@@ -678,7 +688,7 @@
         state.review.rowsScanned = rows.length;
 
         const existing = await fetchAllParts('ro_count', false);
-        const { exactMap, normalizedMap } = buildExistingLookup(existing);
+        const { exactMap, normalizedMap, normalizedAnyManufacturerMap } = buildExistingLookup(existing);
 
         rows.forEach(row => {
           const original = readRowValue(row, [
@@ -712,15 +722,22 @@
             uploaded_by: state.user?.id || null
           };
 
-          const exact = exactMap.get(String(original).trim());
+          const manufacturerKey = normalizeManufacturerKey(manufacturer);
+          const exact = exactMap.get(`${String(original).trim()}__${manufacturerKey}`);
           if (exact) {
             state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
             return;
           }
 
-          const possible = normalizedMap.get(normalized);
+          const possible = normalizedMap.get(`${normalized}__${manufacturerKey}`);
           if (possible && String(possible.part_number_original || '').trim() !== String(original).trim()) {
             state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+            return;
+          }
+
+          const manufacturerConflict = normalizedAnyManufacturerMap.get(normalized);
+          if (manufacturerConflict) {
+            state.review.possibleDuplicates.push({ uploaded: payload, existing: manufacturerConflict, skip: false });
             return;
           }
 
