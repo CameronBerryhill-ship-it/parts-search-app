@@ -499,10 +499,37 @@
       updateStats();
     }
 
+    async function fetchAllParts(orderBy = 'ro_count', ascending = false) {
+      const pageSize = 1000;
+      let from = 0;
+      let allParts = [];
+      let keepGoing = true;
+
+      while (keepGoing) {
+        const { data, error } = await state.supabase
+          .from('parts')
+          .select('*')
+          .order(orderBy, { ascending })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          keepGoing = false;
+          break;
+        }
+
+        allParts = allParts.concat(data);
+        from += pageSize;
+
+        if (data.length < pageSize) keepGoing = false;
+      }
+
+      return allParts;
+    }
+
     async function loadParts() {
-      const { data, error } = await state.supabase.from('parts').select('*').order('ro_count', { ascending: false });
-      if (error) throw error;
-      state.allParts = data || [];
+      state.allParts = await fetchAllParts('ro_count', false);
       applyFilters();
     }
 
