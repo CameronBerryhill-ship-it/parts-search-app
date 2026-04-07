@@ -64,7 +64,7 @@
     button.danger { background: var(--danger); color: white; }
     .muted { color: var(--muted); }
     .hidden { display: none !important; }
-    .toolbar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
+    .toolbar { display: grid; grid-template-columns: 2fr 1.3fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     .stat {
       background: #0b1220;
@@ -194,7 +194,7 @@
           </div>
           <div>
             <label>Expected columns</label>
-            <input value="part_number, description, manufacturer, ro_count, notes" readonly />
+            <input value="Auto-detects files like PARTNUMBER, MFGCODE, LINEDESC, Model Concat, RO Count" readonly />
           </div>
           <div>
             <label>Import action</label>
@@ -226,13 +226,19 @@
         <div class="section-title">
           <div>
             <h2>Search and Sort Parts</h2>
-            <p class="muted">Search by part number, description, or manufacturer.</p>
+            <p class="muted">Search by part number, description, manufacturer, or truck. Filter by truck when that data exists in the file.</p>
           </div>
         </div>
         <div class="toolbar">
           <div>
             <label>Search</label>
-            <input id="searchInput" placeholder="Type a part number, description, or manufacturer" />
+            <input id="searchInput" placeholder="Type a part number, description, manufacturer, or truck" />
+          </div>
+          <div>
+            <label>Truck / Model</label>
+            <select id="vehicleFilter">
+              <option value="">All Trucks</option>
+            </select>
           </div>
           <div>
             <label>Sort by</label>
@@ -273,6 +279,7 @@
                 <th data-sort="part_number_original">Part Number</th>
                 <th data-sort="description">Description</th>
                 <th data-sort="manufacturer">Manufacturer</th>
+                <th data-sort="vehicle_display">Truck / Model</th>
                 <th data-sort="ro_count">RO Count</th>
                 <th data-sort="created_at">Added</th>
                 <th data-sort="updated_at">Updated</th>
@@ -320,6 +327,7 @@
       statTopRO: document.getElementById('statTopRO'),
       statPending: document.getElementById('statPending'),
       partsFile: document.getElementById('partsFile'),
+      vehicleFilter: document.getElementById('vehicleFilter'),
       scanUploadBtn: document.getElementById('scanUploadBtn'),
       reviewCard: document.getElementById('reviewCard'),
       reviewNew: document.getElementById('reviewNew'),
@@ -408,20 +416,48 @@
       return '';
     }
 
+    function cleanVehicleValue(value = '') {
+      return String(value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function parseMetaFromNotes(notes = '') {
+      const out = {};
+      String(notes || '').split(' | ').forEach(part => {
+        const idx = part.indexOf(':');
+        if (idx === -1) return;
+        const key = part.slice(0, idx).trim();
+        const value = part.slice(idx + 1).trim();
+        if (key && value) out[key] = value;
+      });
+      return out;
+    }
+
+    function getVehicleValue(part = {}) {
+      return cleanVehicleValue(part.vehicle || parseMetaFromNotes(part.notes || '')['Model Concat'] || parseMetaFromNotes(part.notes || '')['Vehicle'] || '');
+    }
+
     function buildImportedNotes(row) {
       const extraPairs = [
-        ['Model Concat', ['Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat']],
-        ['MM Category', ['MM Category', 'MM CATEGORY', 'mm category', 'mm_category']],
-        ['Last Used Cost', ['Last Used Cost', 'LAST USED COST', 'last used cost', 'LastUsedCost']],
-        ['LastUsedPart_CHGAMT', ['LastUsedPart_CHGAMT', 'Last Used Part CHGAMT', 'LASTUSEDPART_CHGAMT', 'lastusedpart_chgamt']]
+        ['Model Concat', ['Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat', 'vehicle', 'Vehicle', 'truck', 'Truck']],
+        ['MM Category', ['MM Category', 'MM CATEGORY', 'mm category', 'mm_category', 'category', 'Category']],
+        ['Last Used Cost', ['Last Used Cost', 'LAST USED COST', 'last used cost', 'LastUsedCost', 'last_used_cost']],
+        ['LastUsedPart_CHGAMT', ['LastUsedPart_CHGAMT', 'Last Used Part CHGAMT', 'LASTUSEDPART_CHGAMT', 'lastusedpart_chgamt', 'charge_amount']]
       ];
       const extras = extraPairs
         .map(([label, keys]) => {
           const value = readRowValue(row, keys);
-          return value ? `${label}: ${value}` : '';
+          const cleaned = label === 'Model Concat' ? cleanVehicleValue(value) : value;
+          return cleaned ? `${label}: ${cleaned}` : '';
         })
         .filter(Boolean);
       return extras.join(' | ');
+    }
+
+    function populateVehicleFilter() {
+      const selected = el.vehicleFilter.value;
+      const vehicles = [...new Set(state.allParts.map(getVehicleValue).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      el.vehicleFilter.innerHTML = '<option value="">All Trucks</option>' + vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+      if (vehicles.includes(selected)) el.vehicleFilter.value = selected;
     }
 
     function normalizeManufacturerKey(value = '') {
@@ -465,7 +501,7 @@
 
     function renderPartsTable() {
       if (!state.filteredParts.length) {
-        el.partsTbody.innerHTML = '<tr><td colspan="7" class="muted">No parts found.</td></tr>';
+        el.partsTbody.innerHTML = '<tr><td colspan="8" class="muted">No parts found.</td></tr>';
         return;
       }
       el.partsTbody.innerHTML = state.filteredParts.map(part => `
@@ -473,6 +509,7 @@
           <td>${escapeHtml(part.part_number_original)}</td>
           <td>${escapeHtml(part.description || '')}</td>
           <td>${escapeHtml(part.manufacturer || '')}</td>
+          <td>${escapeHtml(getVehicleValue(part))}</td>
           <td>${escapeHtml(part.ro_count || 0)}</td>
           <td>${escapeHtml(formatDate(part.created_at))}</td>
           <td>${escapeHtml(formatDate(part.updated_at))}</td>
@@ -482,6 +519,7 @@
 
     function applyFilters() {
       const q = el.searchInput.value.trim().toLowerCase();
+      const vehicleFilter = el.vehicleFilter.value.trim();
       const sortBy = el.sortBy.value;
       const direction = el.sortDirection.value;
       let parts = [...state.allParts];
@@ -489,12 +527,16 @@
         parts = parts.filter(part =>
           String(part.part_number_original || '').toLowerCase().includes(q) ||
           String(part.description || '').toLowerCase().includes(q) ||
-          String(part.manufacturer || '').toLowerCase().includes(q)
+          String(part.manufacturer || '').toLowerCase().includes(q) ||
+          getVehicleValue(part).toLowerCase().includes(q)
         );
       }
+      if (vehicleFilter) {
+        parts = parts.filter(part => getVehicleValue(part) === vehicleFilter);
+      }
       parts.sort((a, b) => {
-        let av = a[sortBy] ?? '';
-        let bv = b[sortBy] ?? '';
+        let av = sortBy === 'vehicle_display' ? getVehicleValue(a) : (a[sortBy] ?? '');
+        let bv = sortBy === 'vehicle_display' ? getVehicleValue(b) : (b[sortBy] ?? '');
         if (sortBy === 'ro_count') {
           av = Number(av || 0); bv = Number(bv || 0);
           return direction === 'asc' ? av - bv : bv - av;
@@ -540,6 +582,7 @@
 
     async function loadParts() {
       state.allParts = await fetchAllParts('ro_count', false);
+      populateVehicleFilter();
       applyFilters();
     }
 
@@ -707,6 +750,10 @@
             'ro_count', 'RO Count', 'ro count', 'RO_COUNT',
             'ROCOUNT', 'Ro Count'
           ]);
+          const vehicle = cleanVehicleValue(readRowValue(row, [
+            'Model Concat', 'MODEL CONCAT', 'model concat', 'model_concat',
+            'vehicle', 'Vehicle', 'truck', 'Truck'
+          ]));
           const notes = [readRowValue(row, ['notes', 'Notes']), buildImportedNotes(row)].filter(Boolean).join(' | ');
 
           if (!original) return;
@@ -717,6 +764,7 @@
             part_number_normalized: normalized,
             description,
             manufacturer,
+            vehicle,
             ro_count: Number(roCountRaw || 0),
             notes,
             uploaded_by: state.user?.id || null
@@ -801,15 +849,20 @@
 
     async function importApproved() {
       try {
-        const payload = state.review.newParts.filter(x => !x.skip).map(item => ({
-          part_number_original: item.part_number_original,
-          part_number_normalized: item.part_number_normalized,
-          description: item.description,
-          manufacturer: item.manufacturer,
-          ro_count: Number(item.ro_count || 0),
-          notes: item.notes,
-          uploaded_by: state.user?.id || null
-        }));
+        const supportsVehicleColumn = state.allParts.some(part => Object.prototype.hasOwnProperty.call(part, 'vehicle'));
+        const payload = state.review.newParts.filter(x => !x.skip).map(item => {
+          const row = {
+            part_number_original: item.part_number_original,
+            part_number_normalized: item.part_number_normalized,
+            description: item.description,
+            manufacturer: item.manufacturer,
+            ro_count: Number(item.ro_count || 0),
+            notes: item.notes,
+            uploaded_by: state.user?.id || null
+          };
+          if (supportsVehicleColumn) row.vehicle = item.vehicle || '';
+          return row;
+        });
         if (!payload.length) return showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
         const { error } = await state.supabase.from('parts').insert(payload);
         if (error) throw error;
@@ -823,7 +876,7 @@
     }
 
     function downloadCsv(filename, rows) {
-      const headers = ['part_number_original', 'description', 'manufacturer', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
+      const headers = ['part_number_original', 'description', 'manufacturer', 'vehicle_display', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
       const csv = [headers.join(',')].concat(rows.map(row => headers.map(key => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -933,6 +986,7 @@
         el.scanUploadBtn.addEventListener('click', scanUpload);
         el.importApprovedBtn.addEventListener('click', importApproved);
         el.searchInput.addEventListener('input', applyFilters);
+        el.vehicleFilter.addEventListener('change', applyFilters);
         el.sortBy.addEventListener('change', applyFilters);
         el.sortDirection.addEventListener('change', applyFilters);
         el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
