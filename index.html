@@ -1,788 +1,813 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <title>Parts Program Database Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shared Parts Database</title>
   <style>
-    :root{
-      --bg:#08111f;
-      --bg2:#0f172a;
-      --panel:#111827;
-      --panel2:#172235;
-      --line:#2b3a53;
-      --text:#e5e7eb;
-      --muted:#94a3b8;
-      --accent:#22c55e;
-      --accent2:#38bdf8;
-      --warn:#f59e0b;
-      --danger:#ef4444;
-      --radius:18px;
-      --shadow:0 12px 28px rgba(0,0,0,.28);
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --accent: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
     }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{margin:0;padding:0;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font-family:Arial,Helvetica,sans-serif}
-    body{min-height:100vh}
-    .app{max-width:1400px;margin:0 auto;padding:14px 12px 92px}
-    .topbar{
-      position:sticky;top:0;z-index:50;
-      background:rgba(8,17,31,.88);backdrop-filter:blur(10px);
-      border-bottom:1px solid rgba(148,163,184,.12)
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #020617 0%, #111827 100%);
+      color: var(--text);
     }
-    .topbar-inner{max-width:1400px;margin:0 auto;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center}
-    .brand{display:flex;flex-direction:column}
-    .brand strong{font-size:16px}
-    .brand span{font-size:12px;color:var(--muted)}
-    .top-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .hero,.card{
-      background:rgba(17,24,39,.92);
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .card {
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.25);
+      margin-bottom: 18px;
     }
-    .hero{padding:16px;margin:14px 0}
-    h1,h2,h3{margin:0}
-    h1{font-size:28px;line-height:1.1}
-    .sub{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.45}
-    .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-    .pill{padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(56,189,248,.1);color:#bae6fd;border:1px solid rgba(56,189,248,.22)}
-    .layout{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
-    @media (max-width:1024px){.layout{grid-template-columns:1fr}}
-    .card{padding:14px}
-    .section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
-    .section-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
-    .grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}
-    .grid2{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
-    @media (max-width:860px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media (max-width:620px){.grid,.grid2{grid-template-columns:1fr}}
-    label{display:block;margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.35px;color:var(--muted)}
-    input,select,textarea,button{
-      width:100%;border-radius:12px;border:1px solid var(--line);
-      background:#0b1220;color:var(--text);padding:13px 12px;font-size:16px;
+    h1, h2, h3, h4, p { margin-top: 0; }
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 900px) {
+      .grid-2, .grid-3, .toolbar, .stats, .review-grid { grid-template-columns: 1fr !important; }
     }
-    textarea{min-height:92px;resize:vertical;line-height:1.4}
-    input:focus,select:focus,textarea:focus{outline:2px solid rgba(34,197,94,.28);border-color:var(--accent)}
-    button{cursor:pointer;font-weight:700;min-height:46px}
-    .btn-primary{background:linear-gradient(180deg,#22c55e,#16a34a);border:none;color:#fff}
-    .btn-secondary{background:linear-gradient(180deg,#0ea5e9,#0284c7);border:none;color:#fff}
-    .btn-muted{background:#1e293b}
-    .btn-danger{background:linear-gradient(180deg,#ef4444,#dc2626);border:none;color:#fff}
-    .btn-warn{background:linear-gradient(180deg,#f59e0b,#d97706);border:none;color:#fff}
-    .toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
-    @media (max-width:860px){.toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-    @media (max-width:700px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .stat{background:#0b1220;border:1px solid var(--line);border-radius:14px;padding:12px}
-    .stat .num{font-size:24px;font-weight:800}
-    .stat .lbl{font-size:12px;color:var(--muted);margin-top:4px}
-    .hint{margin-top:12px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;background:rgba(245,158,11,.08);color:#fde68a;border:1px solid rgba(245,158,11,.18)}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-    .tab{width:auto;padding:10px 12px}
-    .tab.active{outline:2px solid rgba(14,165,233,.28);border-color:var(--accent2)}
-    .filters{display:grid;grid-template-columns:1.4fr repeat(5,1fr);gap:10px;margin-bottom:12px}
-    @media (max-width:1100px){.filters{grid-template-columns:1fr 1fr 1fr}}
-    @media (max-width:620px){.filters{grid-template-columns:1fr}}
-    .parts{display:grid;gap:12px}
-    .part-card{background:#0b1220;border:1px solid #223047;border-radius:16px;padding:12px}
-    .part-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
-    .part-title{font-size:17px;font-weight:800;line-height:1.2}
-    .part-sub{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.35}
-    .tag{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.12);color:#bbf7d0}
-    .tag.warn{border-color:rgba(245,158,11,.22);background:rgba(245,158,11,.12);color:#fde68a}
-    .tag.danger{border-color:rgba(239,68,68,.22);background:rgba(239,68,68,.12);color:#fecaca}
-    .tag.blue{border-color:rgba(56,189,248,.22);background:rgba(56,189,248,.12);color:#bae6fd}
-    .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-top:10px}
-    @media (max-width:560px){.detail-grid{grid-template-columns:1fr}}
-    .detail{background:rgba(255,255,255,.02);border:1px solid rgba(148,163,184,.10);border-radius:12px;padding:9px 10px}
-    .k{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.35px;margin-bottom:4px}
-    .v{font-size:14px;line-height:1.35;word-break:break-word}
-    .thumb-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .thumb{width:84px;height:84px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#111827}
-    .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
-    @media (max-width:560px){.actions{grid-template-columns:1fr 1fr}}
-    .empty{text-align:center;color:var(--muted);padding:24px 10px}
-    .footer-spacer{height:8px}
-    .photo-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .photo-preview .wrapimg{position:relative}
-    .photo-preview img{width:82px;height:82px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
-    .remove-photo{
-      position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:999px;
-      width:24px;height:24px;min-height:24px;padding:0;font-size:12px
+    input, select, button, textarea {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 14px;
     }
-    .sticky-mobile{
-      position:fixed;left:0;right:0;bottom:0;display:none;grid-template-columns:1fr 1fr;gap:8px;
-      padding:10px;background:rgba(2,6,23,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(148,163,184,.12);z-index:60
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #052e16;
+      font-weight: 700;
+      border: none;
     }
-    @media (max-width:768px){.sticky-mobile{display:grid}}
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.warn { background: var(--warn); color: #111827; }
+    button.danger { background: var(--danger); color: white; }
+    .muted { color: var(--muted); }
+    .hidden { display: none !important; }
+    .toolbar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stat {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .stat .big { font-size: 28px; font-weight: 800; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #0b1220;
+      cursor: pointer;
+      user-select: none;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .pill.green { background: rgba(34,197,94,.18); color: #86efac; }
+    .pill.orange { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .pill.red { background: rgba(239,68,68,.18); color: #fca5a5; }
+    .review-item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #0b1220;
+      margin-bottom: 12px;
+    }
+    .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .notice {
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      white-space: pre-wrap;
+    }
+    .success { border-color: rgba(34,197,94,.4); }
+    .warning { border-color: rgba(245,158,11,.4); }
+    .error { border-color: rgba(239,68,68,.4); }
+    .footer-space { height: 24px; }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <strong>Parts Program Database Pro</strong>
-        <span>Single-file iPhone friendly version</span>
-      </div>
-      <div class="top-actions">
-        <button class="btn-secondary" id="quickExport" type="button">Export</button>
-        <button class="btn-muted" id="quickTop" type="button">Add Part</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="app">
-    <div class="hero">
-      <h1>Parts Program Database Pro</h1>
-      <div class="sub">
-        Upgraded full version with mobile card layout, photo support, APP and Tomy Trailer sections, quick filters, sorting, low-stock tracking, import/export, and browser auto-save.
-      </div>
-      <div class="pill-row">
-        <span class="pill">APP: Volvo, Freightliner, Peterbuilt, Kenworth, Autocar, Bytec, International</span>
-        <span class="pill">Tomy Trailer: Hyundai, Great Dane, Wabash, Dimitr, Stght, Vanguard, Corbl</span>
-      </div>
+  <div class="wrap">
+    <div class="card">
+      <h1>Shared Parts Database</h1>
+      <p class="muted">Users can upload parts, keep original part numbers intact, search, sort, and review duplicates before import.</p>
+      <div id="bootMessage"></div>
     </div>
 
-    <div class="layout">
-      <div class="card" id="addSection">
-        <div class="section-head">
+    <div id="authCard" class="card">
+      <div class="section-title">
+        <h2>Login</h2>
+        <span class="muted">Required before upload or editing</span>
+      </div>
+      <div id="authMessage"></div>
+      <div class="grid grid-2">
+        <div>
+          <label>Email</label>
+          <input id="email" type="email" placeholder="name@example.com" />
+        </div>
+        <div>
+          <label>Password</label>
+          <input id="password" type="password" placeholder="Password" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="loginBtn" type="button">Login</button>
+        <button id="signupBtn" type="button" class="secondary">Create Account</button>
+      </div>
+    </div>
+
+    <div id="appShell" class="hidden">
+      <div class="card">
+        <div class="section-title">
           <div>
-            <h2>Add / Edit Part</h2>
-            <p>Built for phone use with bigger fields and optional photos.</p>
+            <h2>Dashboard</h2>
+            <p class="muted" id="userLine">Signed in</p>
+          </div>
+          <div class="actions">
+            <button id="refreshBtn" type="button" class="secondary">Refresh</button>
+            <button id="logoutBtn" type="button" class="danger">Logout</button>
           </div>
         </div>
-
-        <form id="partForm">
-          <div class="grid">
-            <div>
-              <label for="group">Program Section</label>
-              <select id="group" required>
-                <option value="APP">APP</option>
-                <option value="Tomy Trailer">Tomy Trailer</option>
-              </select>
-            </div>
-            <div>
-              <label for="brand">Brand</label>
-              <select id="brand" required></select>
-            </div>
-            <div>
-              <label for="status">Status</label>
-              <select id="status">
-                <option value="In Stock">In Stock</option>
-                <option value="Low Stock">Low Stock</option>
-                <option value="On Order">On Order</option>
-                <option value="Out of Stock">Out of Stock</option>
-              </select>
-            </div>
-            <div>
-              <label for="partNumber">Part Number</label>
-              <input id="partNumber" placeholder="Enter part number" required />
-            </div>
-            <div>
-              <label for="partName">Part Name</label>
-              <input id="partName" placeholder="Enter part name" required />
-            </div>
-            <div>
-              <label for="category">Category</label>
-              <input id="category" placeholder="Brake, Lighting, HVAC, Body..." />
-            </div>
-            <div>
-              <label for="qty">Quantity</label>
-              <input id="qty" type="number" min="0" step="1" value="1" />
-            </div>
-            <div>
-              <label for="minQty">Minimum Qty Alert</label>
-              <input id="minQty" type="number" min="0" step="1" value="0" />
-            </div>
-            <div>
-              <label for="cost">Unit Cost</label>
-              <input id="cost" type="number" min="0" step="0.01" placeholder="0.00" />
-            </div>
-            <div>
-              <label for="location">Location / Bin</label>
-              <input id="location" placeholder="Shelf A1 / Trailer Bin 4" />
-            </div>
-            <div>
-              <label for="vendor">Vendor</label>
-              <input id="vendor" placeholder="Dealer / Supplier" />
-            </div>
-            <div>
-              <label for="crossRef">Cross Reference</label>
-              <input id="crossRef" placeholder="Alternate part number" />
-            </div>
-            <div>
-              <label for="fits">Fits / Unit Notes</label>
-              <input id="fits" placeholder="Model, VIN range, trailer type..." />
-            </div>
-            <div>
-              <label for="lastOrdered">Last Ordered</label>
-              <input id="lastOrdered" type="date" />
-            </div>
-            <div>
-              <label for="supplierPhone">Supplier Phone</label>
-              <input id="supplierPhone" placeholder="Phone number" />
-            </div>
-          </div>
-
-          <div class="grid2" style="margin-top:10px">
-            <div>
-              <label for="notes">Notes</label>
-              <textarea id="notes" placeholder="Extra notes, repair info, source details, unit notes..."></textarea>
-            </div>
-            <div>
-              <label for="photoInput">Part Photos</label>
-              <input id="photoInput" type="file" accept="image/*" multiple />
-              <div class="photo-preview" id="photoPreview"></div>
-            </div>
-          </div>
-
-          <div class="toolbar">
-            <button type="submit" class="btn-primary" id="saveBtn">Add Part</button>
-            <button type="button" class="btn-secondary" id="updateBtn" style="display:none;">Update Part</button>
-            <button type="button" class="btn-muted" id="clearBtn">Clear Form</button>
-            <button type="button" class="btn-muted" id="sampleBtn">Load Sample</button>
-          </div>
-        </form>
-
-        <div class="hint">
-          iPhone tip: open the file in Safari and use <strong>Share → Add to Home Screen</strong>. Photos are saved inside your browser data, so export a backup regularly.
+        <div class="stats">
+          <div class="stat"><div class="muted">Total Parts</div><div class="big" id="statTotal">0</div></div>
+          <div class="stat"><div class="muted">Filtered Results</div><div class="big" id="statFiltered">0</div></div>
+          <div class="stat"><div class="muted">Top RO Count</div><div class="big" id="statTopRO">0</div></div>
+          <div class="stat"><div class="muted">Pending Review</div><div class="big" id="statPending">0</div></div>
         </div>
       </div>
 
       <div class="card">
-        <div class="section-head">
+        <div class="section-title">
           <div>
-            <h2>Dashboard</h2>
-            <p>Quick totals, backup, and restore tools.</p>
+            <h2>Upload Parts List</h2>
+            <p class="muted">Supports CSV now and XLSX/XLS if SheetJS loads. Original part numbers stay exactly as entered.</p>
           </div>
         </div>
+        <div id="uploadMessage"></div>
+        <div class="grid grid-3">
+          <div>
+            <label>Choose file</label>
+            <input id="partsFile" type="file" accept=".csv,.xlsx,.xls" />
+          </div>
+          <div>
+            <label>Expected columns</label>
+            <input value="part_number, description, manufacturer, ro_count, notes" readonly />
+          </div>
+          <div>
+            <label>Import action</label>
+            <button id="scanUploadBtn" type="button">Scan Upload</button>
+          </div>
+        </div>
+      </div>
 
+      <div id="reviewCard" class="card hidden">
+        <div class="section-title">
+          <div>
+            <h2>Upload Review</h2>
+            <p class="muted">Review exact duplicates and possible duplicates before importing.</p>
+          </div>
+          <div class="actions">
+            <button id="importApprovedBtn" type="button">Import Approved New Parts</button>
+          </div>
+        </div>
         <div class="stats">
-          <div class="stat"><div class="num" id="totalParts">0</div><div class="lbl">Total Parts</div></div>
-          <div class="stat"><div class="num" id="appCount">0</div><div class="lbl">APP</div></div>
-          <div class="stat"><div class="num" id="trailerCount">0</div><div class="lbl">Tomy Trailer</div></div>
-          <div class="stat"><div class="num" id="lowCount">0</div><div class="lbl">Low / Out</div></div>
+          <div class="stat"><div class="muted">New Parts</div><div class="big" id="reviewNew">0</div></div>
+          <div class="stat"><div class="muted">Exact Duplicates</div><div class="big" id="reviewExact">0</div></div>
+          <div class="stat"><div class="muted">Possible Duplicates</div><div class="big" id="reviewPossible">0</div></div>
+          <div class="stat"><div class="muted">Rows Scanned</div><div class="big" id="reviewRows">0</div></div>
         </div>
+        <div id="reviewList"></div>
+      </div>
 
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Search and Sort Parts</h2>
+            <p class="muted">Search by part number, description, or manufacturer.</p>
+          </div>
+        </div>
         <div class="toolbar">
-          <button type="button" class="btn-secondary" id="exportJsonBtn">Export JSON</button>
-          <button type="button" class="btn-secondary" id="exportCsvBtn">Export CSV</button>
-          <button type="button" class="btn-muted" id="importBtn">Import JSON</button>
-          <button type="button" class="btn-danger" id="resetBtn">Reset All</button>
+          <div>
+            <label>Search</label>
+            <input id="searchInput" placeholder="Type a part number, description, or manufacturer" />
+          </div>
+          <div>
+            <label>Sort by</label>
+            <select id="sortBy">
+              <option value="ro_count">RO Count</option>
+              <option value="part_number_original">Part Number</option>
+              <option value="description">Description</option>
+              <option value="manufacturer">Manufacturer</option>
+              <option value="created_at">Date Added</option>
+              <option value="updated_at">Updated</option>
+            </select>
+          </div>
+          <div>
+            <label>Direction</label>
+            <select id="sortDirection">
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="exportCsvBtn" type="button" class="secondary">Export Filtered CSV</button>
+          </div>
         </div>
-        <input id="importFile" type="file" accept=".json" style="display:none" />
+      </div>
 
-        <div class="hint">
-          This version saves to your current browser on your current device. Export JSON if you want to move it to another phone or computer.
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Parts Table</h2>
+            <p class="muted">Shared master list.</p>
+          </div>
+        </div>
+        <div style="overflow:auto; max-height: 65vh;">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="part_number_original">Part Number</th>
+                <th data-sort="description">Description</th>
+                <th data-sort="manufacturer">Manufacturer</th>
+                <th data-sort="ro_count">RO Count</th>
+                <th data-sort="created_at">Added</th>
+                <th data-sort="updated_at">Updated</th>
+                <th>Uploaded By</th>
+              </tr>
+            </thead>
+            <tbody id="partsTbody"></tbody>
+          </table>
         </div>
       </div>
     </div>
-
-    <div class="card" style="margin-top:14px">
-      <div class="section-head">
-        <div>
-          <h2>Parts List</h2>
-          <p>Search, sort, filter, and manage inventory fast.</p>
-        </div>
-      </div>
-
-      <div class="tabs">
-        <button type="button" class="btn-muted tab active" data-tab="all">All</button>
-        <button type="button" class="btn-muted tab" data-tab="APP">APP</button>
-        <button type="button" class="btn-muted tab" data-tab="Tomy Trailer">Tomy Trailer</button>
-        <button type="button" class="btn-muted tab" data-tab="needs">Needs Stock</button>
-      </div>
-
-      <div class="filters">
-        <div>
-          <label for="searchInput">Search</label>
-          <input id="searchInput" placeholder="Search part number, name, vendor, notes..." />
-        </div>
-        <div>
-          <label for="filterBrand">Brand</label>
-          <select id="filterBrand"><option value="">All Brands</option></select>
-        </div>
-        <div>
-          <label for="filterCategory">Category</label>
-          <input id="filterCategory" placeholder="Filter category" />
-        </div>
-        <div>
-          <label for="filterStatus">Status</label>
-          <select id="filterStatus">
-            <option value="">All Statuses</option>
-            <option value="In Stock">In Stock</option>
-            <option value="Low Stock">Low Stock</option>
-            <option value="On Order">On Order</option>
-            <option value="Out of Stock">Out of Stock</option>
-          </select>
-        </div>
-        <div>
-          <label for="sortBy">Sort By</label>
-          <select id="sortBy">
-            <option value="updated">Recently Updated</option>
-            <option value="name">Part Name</option>
-            <option value="number">Part Number</option>
-            <option value="qtyAsc">Qty Low to High</option>
-            <option value="qtyDesc">Qty High to Low</option>
-            <option value="costDesc">Cost High to Low</option>
-            <option value="brand">Brand</option>
-          </select>
-        </div>
-        <div>
-          <label for="photoOnly">Photos</label>
-          <select id="photoOnly">
-            <option value="">All Parts</option>
-            <option value="withPhotos">With Photos</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="partsList" class="parts"></div>
-      <div id="emptyState" class="empty" style="display:none">No parts found. Add parts or change your filters.</div>
-    </div>
-
-    <div class="footer-spacer"></div>
+    <div class="footer-space"></div>
   </div>
 
-  <div class="sticky-mobile">
-    <button class="btn-primary" id="stickySave" type="button">Add Part</button>
-    <button class="btn-muted" id="stickyClear" type="button">Clear</button>
-  </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script>
-    const STORAGE_KEY = "parts_program_database_pro_v1";
-    const brands = {
-      "APP": ["Volvo","Freightliner","Peterbuilt","Kenworth","Autocar","Bytec","International"],
-      "Tomy Trailer": ["Hyundai","Great Dane","Wabash","Dimitr","Stght","Vanguard","Corbl"]
+    const SUPABASE_URL = "https://asktsoajslylhuxajnic.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_TiND-DM-GZUcIVJ39EEvGQ_Tj7Fmwam";
+
+    const state = {
+      user: null,
+      allParts: [],
+      filteredParts: [],
+      review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
+      supabase: null
     };
 
-    let parts = [];
-    let editId = null;
-    let currentTab = "all";
-    let pendingPhotos = [];
+    const el = {
+      bootMessage: document.getElementById('bootMessage'),
+      authCard: document.getElementById('authCard'),
+      appShell: document.getElementById('appShell'),
+      authMessage: document.getElementById('authMessage'),
+      uploadMessage: document.getElementById('uploadMessage'),
+      email: document.getElementById('email'),
+      password: document.getElementById('password'),
+      loginBtn: document.getElementById('loginBtn'),
+      signupBtn: document.getElementById('signupBtn'),
+      logoutBtn: document.getElementById('logoutBtn'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      userLine: document.getElementById('userLine'),
+      statTotal: document.getElementById('statTotal'),
+      statFiltered: document.getElementById('statFiltered'),
+      statTopRO: document.getElementById('statTopRO'),
+      statPending: document.getElementById('statPending'),
+      partsFile: document.getElementById('partsFile'),
+      scanUploadBtn: document.getElementById('scanUploadBtn'),
+      reviewCard: document.getElementById('reviewCard'),
+      reviewNew: document.getElementById('reviewNew'),
+      reviewExact: document.getElementById('reviewExact'),
+      reviewPossible: document.getElementById('reviewPossible'),
+      reviewRows: document.getElementById('reviewRows'),
+      reviewList: document.getElementById('reviewList'),
+      importApprovedBtn: document.getElementById('importApprovedBtn'),
+      searchInput: document.getElementById('searchInput'),
+      sortBy: document.getElementById('sortBy'),
+      sortDirection: document.getElementById('sortDirection'),
+      partsTbody: document.getElementById('partsTbody'),
+      exportCsvBtn: document.getElementById('exportCsvBtn')
+    };
 
-    const $ = id => document.getElementById(id);
-
-    function uid(){
-      return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    function showMessage(target, text, type = 'success') {
+      target.innerHTML = text ? `<div class="notice ${type}">${text}</div>` : '';
     }
 
-    function safe(v){
-      return String(v ?? "")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#039;");
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
-    function money(v){
-      const n = Number(v || 0);
-      return n ? `$${n.toFixed(2)}` : "—";
+    function normalizePartNumber(partNumber = '') {
+      return String(partNumber).toUpperCase().replace(/[\s\-./]/g, '').trim();
     }
 
-    function statusClass(status){
-      if(status === "Out of Stock") return "danger";
-      if(status === "Low Stock") return "warn";
-      if(status === "On Order") return "blue";
-      return "";
-    }
-
-    function save(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parts));
-    }
-
-    function load(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if(raw){
-          const parsed = JSON.parse(raw);
-          if(Array.isArray(parsed)) parts = parsed;
+    function parseCSV(text) {
+      const rows = [];
+      let current = '';
+      let row = [];
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (char === '"') {
+          if (inQuotes && next === '"') { current += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+          continue;
         }
-      }catch(e){}
-    }
-
-    function updateBrandOptions(){
-      const group = $("group").value;
-      $("brand").innerHTML = (brands[group] || []).map(b => `<option value="${b}">${b}</option>`).join("");
-    }
-
-    function populateFilterBrands(){
-      const all = [...new Set(Object.values(brands).flat())].sort((a,b) => a.localeCompare(b));
-      $("filterBrand").innerHTML = `<option value="">All Brands</option>` + all.map(b => `<option value="${b}">${b}</option>`).join("");
-    }
-
-    function refreshPhotoPreview(){
-      const wrap = $("photoPreview");
-      wrap.innerHTML = pendingPhotos.map((src, i) => `
-        <div class="wrapimg">
-          <img src="${src}" alt="Part photo ${i+1}">
-          <button type="button" class="remove-photo" onclick="removePendingPhoto(${i})">×</button>
-        </div>
-      `).join("");
-    }
-
-    function removePendingPhoto(i){
-      pendingPhotos.splice(i,1);
-      refreshPhotoPreview();
-    }
-    window.removePendingPhoto = removePendingPhoto;
-
-    function readFilesAsDataURLs(files){
-      return Promise.all([...files].map(file => new Promise((resolve,reject)=>{
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      })));
-    }
-
-    function clearForm(){
-      $("partForm").reset();
-      $("group").value = "APP";
-      updateBrandOptions();
-      $("status").value = "In Stock";
-      $("qty").value = 1;
-      $("minQty").value = 0;
-      $("photoInput").value = "";
-      pendingPhotos = [];
-      refreshPhotoPreview();
-      editId = null;
-      $("saveBtn").style.display = "block";
-      $("updateBtn").style.display = "none";
-      $("stickySave").textContent = "Add Part";
-    }
-
-    function getFormData(){
-      const qty = Number($("qty").value || 0);
-      const minQty = Number($("minQty").value || 0);
-      let status = $("status").value;
-      if(qty === 0 && status === "In Stock") status = "Out of Stock";
-      else if(qty > 0 && minQty > 0 && qty <= minQty && status === "In Stock") status = "Low Stock";
-
-      return {
-        id: editId || uid(),
-        group: $("group").value,
-        brand: $("brand").value,
-        status,
-        partNumber: $("partNumber").value.trim(),
-        partName: $("partName").value.trim(),
-        category: $("category").value.trim(),
-        qty,
-        minQty,
-        cost: Number($("cost").value || 0),
-        location: $("location").value.trim(),
-        vendor: $("vendor").value.trim(),
-        crossRef: $("crossRef").value.trim(),
-        fits: $("fits").value.trim(),
-        lastOrdered: $("lastOrdered").value || "",
-        supplierPhone: $("supplierPhone").value.trim(),
-        notes: $("notes").value.trim(),
-        photos: pendingPhotos.slice(),
-        updatedAt: new Date().toISOString()
-      };
-    }
-
-    function validatePart(part){
-      if(!part.group || !part.brand || !part.partNumber || !part.partName){
-        alert("Please fill in section, brand, part number, and part name.");
-        return false;
+        if (char === ',' && !inQuotes) { row.push(current); current = ''; continue; }
+        if ((char === '\n' || char === '\r') && !inQuotes) {
+          if (char === '\r' && next === '\n') i++;
+          row.push(current);
+          if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
+          row = [];
+          current = '';
+          continue;
+        }
+        current += char;
       }
-      return true;
-    }
-
-    function addPart(part){
-      parts.unshift(part);
-      save();
-      render();
-      clearForm();
-    }
-
-    function updatePartNow(){
-      const data = getFormData();
-      if(!validatePart(data)) return;
-      const idx = parts.findIndex(p => p.id === editId);
-      if(idx === -1) return;
-      parts[idx] = data;
-      save();
-      render();
-      clearForm();
-      window.scrollTo({top:0, behavior:"smooth"});
-    }
-
-    function editPart(id){
-      const p = parts.find(x => x.id === id);
-      if(!p) return;
-      editId = id;
-      $("group").value = p.group;
-      updateBrandOptions();
-      $("brand").value = p.brand;
-      $("status").value = p.status || "In Stock";
-      $("partNumber").value = p.partNumber || "";
-      $("partName").value = p.partName || "";
-      $("category").value = p.category || "";
-      $("qty").value = p.qty ?? 0;
-      $("minQty").value = p.minQty ?? 0;
-      $("cost").value = p.cost ?? 0;
-      $("location").value = p.location || "";
-      $("vendor").value = p.vendor || "";
-      $("crossRef").value = p.crossRef || "";
-      $("fits").value = p.fits || "";
-      $("lastOrdered").value = p.lastOrdered || "";
-      $("supplierPhone").value = p.supplierPhone || "";
-      $("notes").value = p.notes || "";
-      pendingPhotos = Array.isArray(p.photos) ? p.photos.slice() : [];
-      refreshPhotoPreview();
-      $("saveBtn").style.display = "none";
-      $("updateBtn").style.display = "block";
-      $("stickySave").textContent = "Update Part";
-      $("addSection").scrollIntoView({behavior:"smooth", block:"start"});
-    }
-    window.editPart = editPart;
-
-    function deletePart(id){
-      if(!confirm("Delete this part?")) return;
-      parts = parts.filter(p => p.id !== id);
-      save();
-      render();
-      if(editId === id) clearForm();
-    }
-    window.deletePart = deletePart;
-
-    function duplicatePart(id){
-      const p = parts.find(x => x.id === id);
-      if(!p) return;
-      const copy = {...p, id: uid(), partName: p.partName + " Copy", updatedAt: new Date().toISOString()};
-      parts.unshift(copy);
-      save();
-      render();
-    }
-    window.duplicatePart = duplicatePart;
-
-    function filteredParts(){
-      const q = $("searchInput").value.trim().toLowerCase();
-      const brand = $("filterBrand").value;
-      const category = $("filterCategory").value.trim().toLowerCase();
-      const status = $("filterStatus").value;
-      const photoOnly = $("photoOnly").value;
-
-      let data = parts.filter(p => {
-        const hay = [
-          p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.qty,p.cost,
-          p.location,p.vendor,p.crossRef,p.fits,p.lastOrdered,p.supplierPhone,p.notes
-        ].join(" ").toLowerCase();
-
-        const tabMatch = currentTab === "all"
-          || (currentTab === "needs" ? (p.status === "Low Stock" || p.status === "Out of Stock" || (Number(p.minQty||0) > 0 && Number(p.qty||0) <= Number(p.minQty||0))) : p.group === currentTab);
-
-        return tabMatch
-          && (!q || hay.includes(q))
-          && (!brand || p.brand === brand)
-          && (!category || (p.category || "").toLowerCase().includes(category))
-          && (!status || p.status === status)
-          && (!photoOnly || (photoOnly === "withPhotos" ? Array.isArray(p.photos) && p.photos.length : true));
+      if (current.length || row.length) {
+        row.push(current);
+        if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
+      }
+      if (!rows.length) return [];
+      const headers = rows[0].map(h => String(h).trim());
+      return rows.slice(1).map(cols => {
+        const obj = {};
+        headers.forEach((header, index) => { obj[header] = (cols[index] ?? '').trim(); });
+        return obj;
       });
-
-      const sortBy = $("sortBy").value;
-      data.sort((a,b) => {
-        if(sortBy === "name") return (a.partName||"").localeCompare(b.partName||"");
-        if(sortBy === "number") return (a.partNumber||"").localeCompare(b.partNumber||"");
-        if(sortBy === "brand") return (a.brand||"").localeCompare(b.brand||"");
-        if(sortBy === "qtyAsc") return Number(a.qty||0) - Number(b.qty||0);
-        if(sortBy === "qtyDesc") return Number(b.qty||0) - Number(a.qty||0);
-        if(sortBy === "costDesc") return Number(b.cost||0) - Number(a.cost||0);
-        return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-      });
-      return data;
     }
 
-    function renderStats(){
-      $("totalParts").textContent = parts.length;
-      $("appCount").textContent = parts.filter(p => p.group === "APP").length;
-      $("trailerCount").textContent = parts.filter(p => p.group === "Tomy Trailer").length;
-      $("lowCount").textContent = parts.filter(p => p.status === "Low Stock" || p.status === "Out of Stock" || (Number(p.minQty||0) > 0 && Number(p.qty||0) <= Number(p.minQty||0))).length;
+    async function fileToRows(file) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.csv')) return parseCSV(await file.text());
+      if ((name.endsWith('.xlsx') || name.endsWith('.xls')) && window.XLSX) {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        return XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+      }
+      throw new Error('Unsupported file type. Use CSV, XLSX, or XLS.');
     }
 
-    function render(){
-      renderStats();
-      document.querySelectorAll(".tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === currentTab));
-      const data = filteredParts();
-      const list = $("partsList");
-      if(!data.length){
-        list.innerHTML = "";
-        $("emptyState").style.display = "block";
+    function readRowValue(row, keys) {
+      for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return String(row[key]).trim();
+      }
+      return '';
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+    }
+
+    function updateStats() {
+      el.statTotal.textContent = state.allParts.length;
+      el.statFiltered.textContent = state.filteredParts.length;
+      el.statTopRO.textContent = state.allParts.length ? Math.max(...state.allParts.map(p => Number(p.ro_count || 0))) : 0;
+      el.statPending.textContent = state.review.exactDuplicates.filter(x => !x.skip).length + state.review.possibleDuplicates.filter(x => !x.skip).length;
+    }
+
+    function renderPartsTable() {
+      if (!state.filteredParts.length) {
+        el.partsTbody.innerHTML = '<tr><td colspan="7" class="muted">No parts found.</td></tr>';
         return;
       }
-      $("emptyState").style.display = "none";
-
-      list.innerHTML = data.map(p => `
-        <div class="part-card">
-          <div class="part-head">
-            <div>
-              <div class="part-title">${safe(p.partName || "")}</div>
-              <div class="part-sub"><strong>${safe(p.partNumber || "")}</strong> • ${safe(p.brand || "")} • ${safe(p.group || "")}</div>
-            </div>
-            <div><span class="tag ${statusClass(p.status)}">${safe(p.status || "—")}</span></div>
-          </div>
-
-          <div class="detail-grid">
-            <div class="detail"><div class="k">Category</div><div class="v">${safe(p.category || "—")}</div></div>
-            <div class="detail"><div class="k">Quantity</div><div class="v">${safe(String(p.qty ?? 0))}</div></div>
-            <div class="detail"><div class="k">Minimum Qty</div><div class="v">${safe(String(p.minQty ?? 0))}</div></div>
-            <div class="detail"><div class="k">Unit Cost</div><div class="v">${money(p.cost)}</div></div>
-            <div class="detail"><div class="k">Location</div><div class="v">${safe(p.location || "—")}</div></div>
-            <div class="detail"><div class="k">Vendor</div><div class="v">${safe(p.vendor || "—")}</div></div>
-            <div class="detail"><div class="k">Cross Ref</div><div class="v">${safe(p.crossRef || "—")}</div></div>
-            <div class="detail"><div class="k">Fits / Unit Notes</div><div class="v">${safe(p.fits || "—")}</div></div>
-            <div class="detail"><div class="k">Last Ordered</div><div class="v">${safe(p.lastOrdered || "—")}</div></div>
-            <div class="detail"><div class="k">Supplier Phone</div><div class="v">${safe(p.supplierPhone || "—")}</div></div>
-            <div class="detail"><div class="k">Notes</div><div class="v">${safe(p.notes || "—")}</div></div>
-            <div class="detail"><div class="k">Updated</div><div class="v">${new Date(p.updatedAt || Date.now()).toLocaleString()}</div></div>
-          </div>
-
-          ${(Array.isArray(p.photos) && p.photos.length) ? `
-            <div class="thumb-row">
-              ${p.photos.map(src => `<img class="thumb" src="${src}" alt="Part photo">`).join("")}
-            </div>
-          ` : ""}
-
-          <div class="actions">
-            <button class="btn-muted" onclick="editPart('${p.id}')">Edit</button>
-            <button class="btn-secondary" onclick="duplicatePart('${p.id}')">Duplicate</button>
-            <button class="btn-danger" onclick="deletePart('${p.id}')">Delete</button>
-          </div>
-        </div>
-      `).join("");
+      el.partsTbody.innerHTML = state.filteredParts.map(part => `
+        <tr>
+          <td>${escapeHtml(part.part_number_original)}</td>
+          <td>${escapeHtml(part.description || '')}</td>
+          <td>${escapeHtml(part.manufacturer || '')}</td>
+          <td>${escapeHtml(part.ro_count || 0)}</td>
+          <td>${escapeHtml(formatDate(part.created_at))}</td>
+          <td>${escapeHtml(formatDate(part.updated_at))}</td>
+          <td>${escapeHtml(part.uploaded_by || '')}</td>
+        </tr>`).join('');
     }
 
-    function download(blob, name){
+    function applyFilters() {
+      const q = el.searchInput.value.trim().toLowerCase();
+      const sortBy = el.sortBy.value;
+      const direction = el.sortDirection.value;
+      let parts = [...state.allParts];
+      if (q) {
+        parts = parts.filter(part =>
+          String(part.part_number_original || '').toLowerCase().includes(q) ||
+          String(part.description || '').toLowerCase().includes(q) ||
+          String(part.manufacturer || '').toLowerCase().includes(q)
+        );
+      }
+      parts.sort((a, b) => {
+        let av = a[sortBy] ?? '';
+        let bv = b[sortBy] ?? '';
+        if (sortBy === 'ro_count') {
+          av = Number(av || 0); bv = Number(bv || 0);
+          return direction === 'asc' ? av - bv : bv - av;
+        }
+        av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
+        if (av < bv) return direction === 'asc' ? -1 : 1;
+        if (av > bv) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+      state.filteredParts = parts;
+      renderPartsTable();
+      updateStats();
+    }
+
+    async function loadParts() {
+      const { data, error } = await state.supabase.from('parts').select('*').order('ro_count', { ascending: false });
+      if (error) throw error;
+      state.allParts = data || [];
+      applyFilters();
+    }
+
+    function resetReview() {
+      state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
+      el.reviewCard.classList.add('hidden');
+      el.reviewList.innerHTML = '';
+      updateStats();
+    }
+
+    function renderReview() {
+      el.reviewCard.classList.remove('hidden');
+      el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
+      el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
+      el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
+      el.reviewRows.textContent = state.review.rowsScanned;
+      let html = '';
+      if (state.review.exactDuplicates.length) {
+        html += '<h3>Exact Duplicates</h3>';
+        state.review.exactDuplicates.forEach((item, index) => {
+          if (item.skip) return;
+          html += `<div class="review-item">
+            <span class="pill red">Exact Duplicate</span>
+            <div class="review-grid" style="margin-top:10px;">
+              <div>
+                <h4>Uploaded</h4>
+                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
+              </div>
+              <div>
+                <h4>Existing</h4>
+                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
+              </div>
+            </div>
+            <div class="actions">
+              <button type="button" onclick="mergeExact(${index})">Merge Into Existing</button>
+              <button type="button" class="secondary" onclick="skipExact(${index})">Skip</button>
+            </div>
+          </div>`;
+        });
+      }
+      if (state.review.possibleDuplicates.length) {
+        html += '<h3>Possible Duplicates</h3>';
+        state.review.possibleDuplicates.forEach((item, index) => {
+          if (item.skip) return;
+          html += `<div class="review-item">
+            <span class="pill orange">Possible Duplicate</span>
+            <div class="review-grid" style="margin-top:10px;">
+              <div>
+                <h4>Uploaded</h4>
+                <p><strong>Part #:</strong> ${escapeHtml(item.uploaded.part_number_original)}</p>
+                <p><strong>Normalized:</strong> ${escapeHtml(item.uploaded.part_number_normalized)}</p>
+                <p><strong>Description:</strong> ${escapeHtml(item.uploaded.description)}</p>
+                <p><strong>Manufacturer:</strong> ${escapeHtml(item.uploaded.manufacturer)}</p>
+                <p><strong>RO Count:</strong> ${escapeHtml(item.uploaded.ro_count)}</p>
+              </div>
+              <div>
+                <h4>Existing</h4>
+                <p><strong>Part #:</strong> ${escapeHtml(item.existing.part_number_original)}</p>
+                <p><strong>Normalized:</strong> ${escapeHtml(item.existing.part_number_normalized)}</p>
+                <p><strong>Description:</strong> ${escapeHtml(item.existing.description || '')}</p>
+                <p><strong>Manufacturer:</strong> ${escapeHtml(item.existing.manufacturer || '')}</p>
+                <p><strong>RO Count:</strong> ${escapeHtml(item.existing.ro_count || 0)}</p>
+              </div>
+            </div>
+            <div class="actions">
+              <button type="button" onclick="mergePossible(${index})">Merge Into Existing</button>
+              <button type="button" class="warn" onclick="keepSeparate(${index})">Keep Separate and Add New</button>
+              <button type="button" class="secondary" onclick="skipPossible(${index})">Skip</button>
+            </div>
+          </div>`;
+        });
+      }
+      if (state.review.newParts.length) {
+        html += '<h3>New Parts Ready to Import</h3>';
+        state.review.newParts.forEach(item => {
+          if (item.skip) return;
+          html += `<div class="review-item">
+            <span class="pill green">New Part</span>
+            <div style="margin-top:10px;">
+              <p><strong>Part #:</strong> ${escapeHtml(item.part_number_original)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
+              <p><strong>Manufacturer:</strong> ${escapeHtml(item.manufacturer)}</p>
+              <p><strong>RO Count:</strong> ${escapeHtml(item.ro_count)}</p>
+            </div>
+          </div>`;
+        });
+      }
+      if (!html) html = '<div class="notice success">Nothing left to review.</div>';
+      el.reviewList.innerHTML = html;
+      updateStats();
+    }
+
+    async function scanUpload() {
+      try {
+        showMessage(el.uploadMessage, '', 'success');
+        resetReview();
+        const file = el.partsFile.files[0];
+        if (!file) return showMessage(el.uploadMessage, 'Choose a file first.', 'warning');
+        const rows = await fileToRows(file);
+        if (!rows.length) return showMessage(el.uploadMessage, 'No rows found in the file.', 'warning');
+        state.review.rowsScanned = rows.length;
+        const { data: existingParts, error } = await state.supabase.from('parts').select('*');
+        if (error) throw error;
+        const existing = existingParts || [];
+        rows.forEach(row => {
+          const original = readRowValue(row, ['part_number', 'Part Number', 'part number', 'PART_NUMBER', 'PartNumber']);
+          const description = readRowValue(row, ['description', 'Description', 'DESC', 'desc']);
+          const manufacturer = readRowValue(row, ['manufacturer', 'Manufacturer', 'brand', 'Brand']);
+          const roCountRaw = readRowValue(row, ['ro_count', 'RO Count', 'ro count', 'RO_COUNT']);
+          const notes = readRowValue(row, ['notes', 'Notes']);
+          if (!original) return;
+          const normalized = normalizePartNumber(original);
+          const payload = {
+            part_number_original: original,
+            part_number_normalized: normalized,
+            description, manufacturer,
+            ro_count: Number(roCountRaw || 0),
+            notes,
+            uploaded_by: state.user?.id || null
+          };
+          const exact = existing.find(x => String(x.part_number_original || '').trim() === original.trim());
+          if (exact) return state.review.exactDuplicates.push({ uploaded: payload, existing: exact, skip: false });
+          const possible = existing.find(x => String(x.part_number_normalized || '').trim() === normalized && String(x.part_number_original || '').trim() !== original.trim());
+          if (possible) return state.review.possibleDuplicates.push({ uploaded: payload, existing: possible, skip: false });
+          state.review.newParts.push({ ...payload, skip: false });
+        });
+        renderReview();
+        showMessage(el.uploadMessage, 'Upload scanned. Review the items below before import.', 'success');
+      } catch (err) {
+        console.error(err);
+        showMessage(el.uploadMessage, `Scan error: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    async function mergeExisting(existingId, uploaded) {
+      const { data: current, error: readError } = await state.supabase.from('parts').select('*').eq('id', existingId).single();
+      if (readError) throw readError;
+      const updatePayload = {
+        ro_count: Number(current.ro_count || 0) + Number(uploaded.ro_count || 0),
+        description: current.description || uploaded.description || '',
+        manufacturer: current.manufacturer || uploaded.manufacturer || '',
+        notes: [current.notes, uploaded.notes].filter(Boolean).join(' | '),
+        uploaded_by: current.uploaded_by || uploaded.uploaded_by || null
+      };
+      const { error: updateError } = await state.supabase.from('parts').update(updatePayload).eq('id', existingId);
+      if (updateError) throw updateError;
+    }
+
+    window.mergeExact = async function(index) {
+      try {
+        const item = state.review.exactDuplicates[index];
+        if (!item) return;
+        await mergeExisting(item.existing.id, item.uploaded);
+        item.skip = true;
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, 'Exact duplicate merged into existing part.', 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+      }
+    };
+    window.skipExact = function(index) { const item = state.review.exactDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
+    window.mergePossible = async function(index) {
+      try {
+        const item = state.review.possibleDuplicates[index];
+        if (!item) return;
+        await mergeExisting(item.existing.id, item.uploaded);
+        item.skip = true;
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, 'Possible duplicate merged into existing part.', 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Merge error: ${escapeHtml(err.message)}`, 'error');
+      }
+    };
+    window.keepSeparate = function(index) {
+      const item = state.review.possibleDuplicates[index];
+      if (item) { state.review.newParts.push({ ...item.uploaded, skip: false }); item.skip = true; renderReview(); }
+    };
+    window.skipPossible = function(index) { const item = state.review.possibleDuplicates[index]; if (item) { item.skip = true; renderReview(); } };
+
+    async function importApproved() {
+      try {
+        const payload = state.review.newParts.filter(x => !x.skip).map(item => ({
+          part_number_original: item.part_number_original,
+          part_number_normalized: item.part_number_normalized,
+          description: item.description,
+          manufacturer: item.manufacturer,
+          ro_count: Number(item.ro_count || 0),
+          notes: item.notes,
+          uploaded_by: state.user?.id || null
+        }));
+        if (!payload.length) return showMessage(el.uploadMessage, 'No approved new parts left to import.', 'warning');
+        const { error } = await state.supabase.from('parts').insert(payload);
+        if (error) throw error;
+        state.review.newParts.forEach(item => item.skip = true);
+        renderReview();
+        await loadParts();
+        showMessage(el.uploadMessage, `${payload.length} new parts imported.`, 'success');
+      } catch (err) {
+        showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
+      }
+    }
+
+    function downloadCsv(filename, rows) {
+      const headers = ['part_number_original', 'description', 'manufacturer', 'ro_count', 'created_at', 'updated_at', 'uploaded_by'];
+      const csv = [headers.join(',')].concat(rows.map(row => headers.map(key => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
-      a.download = name;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     }
 
-    function exportJson(){
-      const blob = new Blob([JSON.stringify(parts, null, 2)], {type:"application/json"});
-      download(blob, "parts-program-database-pro.json");
+    async function afterAuth() {
+      el.authCard.classList.add('hidden');
+      el.appShell.classList.remove('hidden');
+      el.userLine.textContent = `Signed in as ${state.user.email}`;
+      showMessage(el.authMessage, '', 'success');
+      try {
+        await loadParts();
+      } catch (err) {
+        showMessage(el.uploadMessage, `Logged in, but parts table could not load. Run the SQL setup in Supabase first. Error: ${escapeHtml(err.message)}`, 'error');
+      }
+      updateStats();
     }
 
-    function exportCsv(){
-      const headers = ["Section","Brand","Status","Part Number","Part Name","Category","Quantity","Minimum Qty","Unit Cost","Location","Vendor","Cross Ref","Fits","Last Ordered","Supplier Phone","Notes","Updated At"];
-      const rows = parts.map(p => [
-        p.group,p.brand,p.status,p.partNumber,p.partName,p.category,p.qty,p.minQty,p.cost,p.location,p.vendor,p.crossRef,p.fits,p.lastOrdered,p.supplierPhone,p.notes,p.updatedAt
-      ]);
-      const csv = [headers, ...rows]
-        .map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(","))
-        .join("\n");
-      const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
-      download(blob, "parts-program-database-pro.csv");
+    async function login() {
+      try {
+        showMessage(el.authMessage, '', 'success');
+        const email = el.email.value.trim();
+        const password = el.password.value;
+        if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
+        const { data, error } = await state.supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (!data.user) throw new Error('Login returned no user.');
+        state.user = data.user;
+        await afterAuth();
+      } catch (err) {
+        showMessage(el.authMessage, `Login failed: ${escapeHtml(err.message)}`, 'error');
+      }
     }
 
-    function importJson(file){
-      const reader = new FileReader();
-      reader.onload = e => {
-        try{
-          const parsed = JSON.parse(e.target.result);
-          if(!Array.isArray(parsed)) throw new Error("bad file");
-          parts = parsed;
-          save();
-          render();
-          alert("Import complete.");
-        }catch(err){
-          alert("Import failed. Please choose a valid JSON export file.");
+    async function signup() {
+      try {
+        showMessage(el.authMessage, '', 'success');
+        const email = el.email.value.trim();
+        const password = el.password.value;
+        if (!email || !password) return showMessage(el.authMessage, 'Enter email and password.', 'warning');
+        const { data, error } = await state.supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        if (data.user) {
+          showMessage(el.authMessage, 'Account created. You can log in now.', 'success');
+        } else {
+          showMessage(el.authMessage, 'Account created. Check your email if confirmation is required.', 'success');
         }
-      };
-      reader.readAsText(file);
+      } catch (err) {
+        showMessage(el.authMessage, `Sign up failed: ${escapeHtml(err.message)}`, 'error');
+      }
     }
 
-    function loadSample(){
-      const now = new Date().toISOString();
-      const sample = [
-        {id:uid(),group:"APP",brand:"Freightliner",status:"In Stock",partNumber:"16-724",partName:"7-Way Receptacle",category:"Electrical",qty:3,minQty:1,cost:28.5,location:"APP Shelf A1",vendor:"Dealer",crossRef:"",fits:"M2 / Cascadia",lastOrdered:"",supplierPhone:"",notes:"Common trailer plug replacement.",photos:[],updatedAt:now},
-        {id:uid(),group:"APP",brand:"Volvo",status:"On Order",partNumber:"VOL-WS-102",partName:"Wiper Linkage",category:"Body",qty:1,minQty:1,cost:149.99,location:"APP Shelf B2",vendor:"Volvo Dealer",crossRef:"",fits:"VNL",lastOrdered:"",supplierPhone:"",notes:"Verify by VIN before ordering.",photos:[],updatedAt:now},
-        {id:uid(),group:"Tomy Trailer",brand:"Hyundai",status:"In Stock",partNumber:"HYU2300DA34-X07",partName:"Corner Protector",category:"Body",qty:2,minQty:1,cost:67.25,location:"Trailer Rack C3",vendor:"Trailer Supplier",crossRef:"",fits:"Dry Van",lastOrdered:"",supplierPhone:"",notes:"Rear corner repair.",photos:[],updatedAt:now},
-        {id:uid(),group:"Tomy Trailer",brand:"Wabash",status:"Low Stock",partNumber:"31317-04",partName:"True Tee Fitting",category:"ATIS",qty:1,minQty:2,cost:11.75,location:"Trailer Bin 4",vendor:"FleetPride",crossRef:"",fits:"ATIS trailers",lastOrdered:"",supplierPhone:"",notes:"Keep extras in stock.",photos:[],updatedAt:now}
-      ];
-      parts = [...sample, ...parts];
-      save();
-      render();
+    async function logout() {
+      await state.supabase.auth.signOut();
+      state.user = null;
+      state.allParts = [];
+      state.filteredParts = [];
+      resetReview();
+      el.authCard.classList.remove('hidden');
+      el.appShell.classList.add('hidden');
+      showMessage(el.authMessage, 'Signed out.', 'success');
     }
 
-    $("group").addEventListener("change", updateBrandOptions);
-    $("photoInput").addEventListener("change", async (e) => {
-      const files = e.target.files;
-      if(!files || !files.length) return;
-      try{
-        const imgs = await readFilesAsDataURLs(files);
-        pendingPhotos = pendingPhotos.concat(imgs);
-        refreshPhotoPreview();
-      }catch(err){
-        alert("Could not read selected image.");
+    async function init() {
+      try {
+        if (!window.supabase || !window.supabase.createClient) {
+          showMessage(el.bootMessage, 'Supabase library did not load. Save the file again, commit, then hard refresh the site.', 'error');
+          return;
+        }
+        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        showMessage(el.bootMessage, 'App loaded.', 'success');
+
+        const { data, error } = await state.supabase.auth.getSession();
+        if (error) throw error;
+
+        const session = data?.session;
+        if (session?.user) {
+          state.user = session.user;
+          await afterAuth();
+        }
+
+        state.supabase.auth.onAuthStateChange(async (_event, session) => {
+          if (session?.user) {
+            state.user = session.user;
+            await afterAuth();
+          } else {
+            state.user = null;
+            el.authCard.classList.remove('hidden');
+            el.appShell.classList.add('hidden');
+          }
+        });
+
+        el.loginBtn.addEventListener('click', login);
+        el.signupBtn.addEventListener('click', signup);
+        el.logoutBtn.addEventListener('click', logout);
+        el.refreshBtn.addEventListener('click', async () => {
+          try { await loadParts(); showMessage(el.uploadMessage, 'Refreshed.', 'success'); }
+          catch (err) { showMessage(el.uploadMessage, `Refresh failed: ${escapeHtml(err.message)}`, 'error'); }
+        });
+        el.scanUploadBtn.addEventListener('click', scanUpload);
+        el.importApprovedBtn.addEventListener('click', importApproved);
+        el.searchInput.addEventListener('input', applyFilters);
+        el.sortBy.addEventListener('change', applyFilters);
+        el.sortDirection.addEventListener('change', applyFilters);
+        el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+          th.addEventListener('click', () => {
+            const field = th.getAttribute('data-sort');
+            if (el.sortBy.value === field) el.sortDirection.value = el.sortDirection.value === 'asc' ? 'desc' : 'asc';
+            else el.sortBy.value = field;
+            applyFilters();
+          });
+        });
+      } catch (err) {
+        showMessage(el.bootMessage, `Startup failed: ${escapeHtml(err.message)}`, 'error');
       }
-      e.target.value = "";
-    });
+    }
 
-    $("partForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const data = getFormData();
-      if(!validatePart(data)) return;
-      addPart(data);
-    });
-
-    $("updateBtn").addEventListener("click", updatePartNow);
-    $("clearBtn").addEventListener("click", clearForm);
-    $("sampleBtn").addEventListener("click", loadSample);
-    $("stickyClear").addEventListener("click", clearForm);
-    $("stickySave").addEventListener("click", () => {
-      if(editId) updatePartNow();
-      else {
-        const data = getFormData();
-        if(!validatePart(data)) return;
-        addPart(data);
-      }
-    });
-
-    $("exportJsonBtn").addEventListener("click", exportJson);
-    $("exportCsvBtn").addEventListener("click", exportCsv);
-    $("quickExport").addEventListener("click", exportJson);
-    $("importBtn").addEventListener("click", () => $("importFile").click());
-    $("importFile").addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if(file) importJson(file);
-      e.target.value = "";
-    });
-    $("resetBtn").addEventListener("click", () => {
-      if(!confirm("Reset all saved parts on this device?")) return;
-      parts = [];
-      save();
-      render();
-      clearForm();
-    });
-    $("quickTop").addEventListener("click", () => $("addSection").scrollIntoView({behavior:"smooth"}));
-
-    ["searchInput","filterBrand","filterCategory","filterStatus","sortBy","photoOnly"].forEach(id => {
-      $(id).addEventListener("input", render);
-      $(id).addEventListener("change", render);
-    });
-
-    document.querySelectorAll(".tab").forEach(btn => {
-      btn.addEventListener("click", () => {
-        currentTab = btn.dataset.tab;
-        render();
-      });
-    });
-
-    load();
-    updateBrandOptions();
-    populateFilterBrands();
-    clearForm();
-    render();
+    init();
   </script>
 </body>
 </html>
