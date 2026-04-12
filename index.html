@@ -146,6 +146,48 @@
     .related-list { display: grid; gap: 10px; }
     .related-chip { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#111827; margin:2px 6px 2px 0; font-size:12px; }
     .part-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .card-collapsible .section-body { margin-top: 14px; }
+    .card-collapsible.collapsed .section-body { display: none; }
+    .section-toggle {
+      width: auto;
+      min-width: 130px;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+    }
+    .section-toggle:hover { background: rgba(255,255,255,.04); }
+    .section-toggle .chev {
+      display: inline-block;
+      transition: transform .18s ease;
+      font-size: 12px;
+    }
+    .card-collapsible:not(.collapsed) .section-toggle .chev { transform: rotate(180deg); }
+    .section-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(11,18,32,.75);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .workspace-note {
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .workspace-note .muted { margin-bottom:0; }
     .table-meta { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
     .pager { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; }
     .pager button { width:auto; min-width:120px; }
@@ -325,6 +367,7 @@
             <button id="logoutBtn" type="button" class="danger">Logout</button>
           </div>
         </div>
+        <div class="section-body">
         <div class="stats">
           <div class="stat"><div class="muted">Total Parts</div><div class="big" id="statTotal">0</div></div>
           <div class="stat"><div class="muted">Filtered Results</div><div class="big" id="statFiltered">0</div></div>
@@ -340,19 +383,25 @@
         </div>
         <div class="quick-jumps">
           <button type="button" class="jump-btn" onclick="document.getElementById('searchCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Search</button>
-          <button type="button" class="jump-btn" onclick="document.getElementById('uploadCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Upload</button>
-          <button type="button" class="jump-btn" onclick="document.getElementById('manualCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Add Part</button>
+          <button type="button" class="jump-btn" onclick="openSectionCard('uploadCard'); document.getElementById('uploadCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Upload</button>
+          <button type="button" class="jump-btn" onclick="openSectionCard('manualCard'); document.getElementById('manualCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Add Part</button>
           <button type="button" class="jump-btn" onclick="document.getElementById('tableCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Results</button>
+        </div>
+        <div class="workspace-note">
+          <p class="muted">Upload, manual entry, review, and related-parts tools stay tucked away until you need them.</p>
+          <span class="section-hint">Search stays front and center</span>
         </div>
       </div>
 
-      <div id="uploadCard" class="card">
+      <div id="uploadCard" class="card card-collapsible collapsed">
         <div class="section-title">
           <div>
             <h2>Upload Parts List</h2>
             <p class="muted">Recognizes generic files and Middle Mile exports like PARTNUMBER, MFGCODE, LINEDESC, RO Count, Model Concat, and MM Category.</p>
           </div>
+          <button type="button" class="section-toggle secondary" data-target="uploadCard" data-label="Upload Tools"><span class="toggle-label">Open Upload Tools</span><span class="chev">▾</span></button>
         </div>
+        <div class="section-body">
         <div id="uploadMessage"></div>
         <div id="scanProgressWrap" class="hidden">
           <div class="progress"><div id="scanProgressBar"></div></div>
@@ -371,15 +420,18 @@
             <button id="scanUploadBtn" type="button">Scan Upload</button>
           </div>
         </div>
+        </div>
       </div>
 
-      <div id="manualCard" class="card">
+      <div id="manualCard" class="card card-collapsible collapsed">
         <div class="section-title">
           <div>
             <h2>Add Part Manually</h2>
             <p class="muted">Add a single part with notes and optional related parts.</p>
           </div>
+          <button type="button" class="section-toggle secondary" data-target="manualCard" data-label="Manual Entry"><span class="toggle-label">Open Manual Entry</span><span class="chev">▾</span></button>
         </div>
+        <div class="section-body">
         <div id="manualPartMessage"></div>
         <div class="grid grid-3">
           <div>
@@ -415,15 +467,17 @@
           <button id="addManualPartBtn" type="button">Add Part</button>
           <button id="clearManualPartBtn" type="button" class="secondary">Clear</button>
         </div>
+        </div>
       </div>
 
-      <div id="reviewCard" class="card hidden">
+      <div id="reviewCard" class="card card-collapsible collapsed hidden">
         <div class="section-title">
           <div>
             <h2>Upload Review</h2>
             <p class="muted">Matches by part number + manufacturer. Same part number from different manufacturers stays separate.</p>
           </div>
           <div class="actions">
+            <button type="button" class="section-toggle secondary" data-target="reviewCard" data-label="Review Queue"><span class="toggle-label">Open Review Queue</span><span class="chev">▾</span></button>
             <button id="mergeAllExactBtn" type="button" class="secondary">Merge All Exact Duplicates</button>
             <button id="mergeAllPossibleBtn" type="button" class="secondary">Merge All Possible Duplicates</button>
             <button id="importApprovedBtn" type="button">Import Approved New Parts</button>
@@ -436,6 +490,7 @@
           <div class="stat"><div class="muted">Rows Scanned</div><div class="big" id="reviewRows">0</div></div>
         </div>
         <div id="reviewList"></div>
+        </div>
       </div>
 
       <div id="searchCard" class="card search-card">
@@ -498,13 +553,15 @@
         <div id="activeFilters" class="chip-row"></div>
       </div>
 
-      <div id="relatedCard" class="card hidden">
+      <div id="relatedCard" class="card card-collapsible hidden">
         <div class="section-title">
           <div>
             <h2>Related Parts Manager</h2>
             <p class="muted">Select a part from the table, then connect it to another existing part. This uses a real link table when the database is set up.</p>
           </div>
+          <button type="button" class="section-toggle secondary" data-target="relatedCard" data-label="Related Parts"><span class="toggle-label">Hide Related Parts</span><span class="chev">▾</span></button>
         </div>
+        <div class="section-body">
         <div id="relatedMessage"></div>
         <div class="grid grid-2">
           <div>
@@ -531,6 +588,7 @@
         <div style="margin-top:16px;">
           <h3>Current Linked Parts</h3>
           <div id="relatedList" class="related-list"></div>
+        </div>
         </div>
       </div>
 
@@ -889,6 +947,43 @@
         state.review.possibleDuplicates.filter(x => !x.skip).length;
     }
 
+    function updateSectionToggle(card) {
+      if (!card) return;
+      const button = card.querySelector('.section-toggle');
+      if (!button) return;
+      const collapsed = card.classList.contains('collapsed');
+      const label = button.dataset.label || 'Section';
+      const text = collapsed ? `Open ${label}` : `Hide ${label}`;
+      const labelNode = button.querySelector('.toggle-label');
+      if (labelNode) labelNode.textContent = text;
+      button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    function setSectionCollapsed(cardId, collapsed) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      card.classList.toggle('collapsed', collapsed);
+      updateSectionToggle(card);
+    }
+
+    function toggleSectionCard(cardId) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      card.classList.toggle('collapsed');
+      updateSectionToggle(card);
+    }
+
+    function openSectionCard(cardId) {
+      setSectionCollapsed(cardId, false);
+    }
+
+    function initializeSectionToggles() {
+      document.querySelectorAll('.card-collapsible').forEach(updateSectionToggle);
+      document.querySelectorAll('.section-toggle').forEach(button => {
+        button.addEventListener('click', () => toggleSectionCard(button.dataset.target));
+      });
+    }
+
     function setSearchStatus(text) {
       if (el.searchStatus) el.searchStatus.textContent = text;
     }
@@ -1059,6 +1154,7 @@
       }
 
       el.relatedCard.classList.remove('hidden');
+      openSectionCard('relatedCard');
       el.selectedPartDisplay.value = getPartLabel(selected);
       refreshRelatedTargetOptions();
 
@@ -1268,6 +1364,7 @@
 
     function renderReview() {
       el.reviewCard.classList.remove('hidden');
+      openSectionCard('reviewCard');
       el.reviewNew.textContent = state.review.newParts.filter(x => !x.skip).length;
       el.reviewExact.textContent = state.review.exactDuplicates.filter(x => !x.skip).length;
       el.reviewPossible.textContent = state.review.possibleDuplicates.filter(x => !x.skip).length;
@@ -2091,6 +2188,7 @@
           return;
         }
         state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        initializeSectionToggles();
         setSearchStatus('Ready to search');
         showMessage(el.bootMessage, 'App loaded.', 'success');
 
@@ -2202,6 +2300,8 @@
       }
     }
 
+    window.openSectionCard = openSectionCard;
+    window.toggleSectionCard = toggleSectionCard;
     init();
   </script>
 </body>
