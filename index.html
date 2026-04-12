@@ -661,6 +661,11 @@
       isLoadingParts: false,
       pendingLoadRequested: false,
       lastRequestedLoadReason: '',
+      lastInputAt: 0,
+      currentSearchText: '',
+      lastLoadedSearchText: '',
+      loadStartedAt: 0,
+      loadWatchdogTimer: null,
       vehicleOptionsLoaded: false,
       relatedTargetParts: [],
       review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
@@ -758,10 +763,27 @@
 
     function debounce(fn, delay = 300) {
       let timer = null;
-      return (...args) => {
+      const debounced = (...args) => {
         clearTimeout(timer);
-        timer = setTimeout(() => fn(...args), delay);
+        timer = setTimeout(() => {
+          timer = null;
+          fn(...args);
+        }, delay);
       };
+      debounced.cancel = () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      };
+      debounced.flush = (...args) => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        return fn(...args);
+      };
+      return debounced;
     }
 
     function normalizePartNumber(partNumber = '') {
@@ -991,6 +1013,56 @@
 
     function setSearchStatus(text) {
       if (el.searchStatus) el.searchStatus.textContent = text;
+    }
+
+
+    function resetLoadWatchdog() {
+      if (state.loadWatchdogTimer) {
+        clearTimeout(state.loadWatchdogTimer);
+        state.loadWatchdogTimer = null;
+      }
+    }
+
+    function startLoadWatchdog(reason) {
+      resetLoadWatchdog();
+      state.loadStartedAt = Date.now();
+      const tokenAtStart = state.activeSearchToken;
+      state.loadWatchdogTimer = setTimeout(() => {
+        if (!state.isLoadingParts || tokenAtStart !== state.activeSearchToken) return;
+        state.isLoadingParts = false;
+        state.activeSearchToken += 1;
+        state.pendingLoadRequested = false;
+        setSearchStatus('Search timed out — try again');
+        showMessage(el.bootMessage, 'Search timed out after waiting too long. The page is ready for a new search.', 'warning');
+      }, 15000);
+    }
+
+    function requestSearch(reason = 'search', immediate = false) {
+      state.currentSearchText = el.searchInput.value.trim();
+      state.lastInputAt = Date.now();
+      state.currentPage = 1;
+      if (!debouncedLoadParts) return;
+      if (immediate) {
+        debouncedLoadParts.cancel();
+        loadParts(reason).catch(err => showMessage(el.uploadMessage, `${reason === 'search' ? 'Search' : 'Load'} failed: ${escapeHtml(err.message || String(err))}`, 'error'));
+        return;
+      }
+      debouncedLoadParts();
+    }
+
+    async function recoverSearchFlow(mode = 'retry') {
+      try {
+        resetLoadWatchdog();
+        state.isLoadingParts = false;
+        state.pendingLoadRequested = false;
+        state.activeSearchToken += 1;
+        if (state.supabase?.auth?.refreshSession) {
+          try { await state.supabase.auth.refreshSession(); } catch (_) {}
+        }
+        if (mode === 'retry' && state.user) {
+          loadParts('search').catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message || String(err))}`, 'error'));
+        }
+      } catch (_) {}
     }
 
     function renderActiveFilters() {
@@ -1336,7 +1408,9 @@
 
       state.isLoadingParts = true;
       state.lastRequestedLoadReason = reason;
+      state.currentSearchText = el.searchInput.value.trim();
       const requestToken = ++state.activeSearchToken;
+      startLoadWatchdog(reason);
       const loadingMessage = reason === 'search'
         ? 'Searching parts...'
         : reason === 'filter'
@@ -1353,6 +1427,7 @@
       try {
         await fetchPartsPage();
         if (requestToken !== state.activeSearchToken) return;
+        state.lastLoadedSearchText = state.currentSearchText;
         renderPartsTable();
         updateStats();
         renderRelatedList();
@@ -1363,6 +1438,7 @@
         showMessage(el.bootMessage, `Load failed: ${escapeHtml(err.message || String(err))}`, 'error');
         throw err;
       } finally {
+        resetLoadWatchdog();
         state.isLoadingParts = false;
         if (state.pendingLoadRequested) {
           state.pendingLoadRequested = false;
@@ -2280,15 +2356,15 @@
         el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
         el.searchInput.addEventListener('input', () => {
-          setSearchStatus(el.searchInput.value.trim() ? 'Typing… searching soon' : 'Ready to search');
-          debouncedLoadParts();
+          state.currentSearchText = el.searchInput.value.trim();
+          state.lastInputAt = Date.now();
+          setSearchStatus(state.currentSearchText ? 'Typing… searching soon' : 'Ready to search');
+          requestSearch('search');
         });
         el.searchInput.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
-            debouncedLoadParts.cancel();
-            state.currentPage = 1;
-            loadParts('search').catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+            requestSearch('search', true);
           }
         });
         el.vehicleFilter.addEventListener('change', () => {
@@ -2335,6 +2411,23 @@
             state.currentPage = 1;
             loadParts('sort').catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
           });
+        });
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && state.user) {
+            const searchChanged = state.currentSearchText !== state.lastLoadedSearchText;
+            const loadLooksStuck = state.isLoadingParts && (Date.now() - state.loadStartedAt > 10000);
+            if (loadLooksStuck || searchChanged) recoverSearchFlow(searchChanged ? 'retry' : 'reset');
+          }
+        });
+        window.addEventListener('focus', () => {
+          if (!state.user) return;
+          const searchChanged = state.currentSearchText !== state.lastLoadedSearchText;
+          const loadLooksStuck = state.isLoadingParts && (Date.now() - state.loadStartedAt > 10000);
+          if (loadLooksStuck || searchChanged) recoverSearchFlow(searchChanged ? 'retry' : 'reset');
+        });
+        window.addEventListener('online', () => {
+          if (state.user) recoverSearchFlow('retry');
         });
       } catch (err) {
         showMessage(el.bootMessage, `Startup failed: ${escapeHtml(err.message)}`, 'error');
