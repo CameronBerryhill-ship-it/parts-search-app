@@ -658,6 +658,9 @@
       currentPage: 1,
       pageSize: 100,
       activeSearchToken: 0,
+      isLoadingParts: false,
+      pendingLoadRequested: false,
+      lastRequestedLoadReason: '',
       vehicleOptionsLoaded: false,
       relatedTargetParts: [],
       review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
@@ -669,6 +672,8 @@
       selectedPartId: null,
       relatedPartsMap: new Map()
     };
+
+    let debouncedLoadParts = null;
 
     const el = {
       bootMessage: document.getElementById('bootMessage'),
@@ -1240,7 +1245,7 @@
 
       let query = state.supabase
         .from('parts')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'planned' })
         .order(sortField, { ascending: direction === 'asc' })
         .range(from, to);
 
@@ -1322,17 +1327,51 @@
       }
     }
 
-    async function loadParts() {
+    async function loadParts(reason = 'load') {
+      if (state.isLoadingParts) {
+        state.pendingLoadRequested = true;
+        state.lastRequestedLoadReason = reason;
+        return;
+      }
+
+      state.isLoadingParts = true;
+      state.lastRequestedLoadReason = reason;
       const requestToken = ++state.activeSearchToken;
-      setSearchStatus('Loading results...');
-      showMessage(el.bootMessage, 'Loading parts...', 'warning');
-      await fetchPartsPage();
-      if (requestToken !== state.activeSearchToken) return;
-      renderPartsTable();
-      updateStats();
-      renderRelatedList();
-      setSearchStatus(state.totalParts ? 'Results ready' : 'No matches');
-      showMessage(el.bootMessage, 'App loaded.', 'success');
+      const loadingMessage = reason === 'search'
+        ? 'Searching parts...'
+        : reason === 'filter'
+          ? 'Applying filters...'
+          : reason === 'sort'
+            ? 'Sorting results...'
+            : reason === 'page'
+              ? 'Loading page...'
+              : 'Loading parts...';
+
+      setSearchStatus(loadingMessage);
+      showMessage(el.bootMessage, loadingMessage, 'warning');
+
+      try {
+        await fetchPartsPage();
+        if (requestToken !== state.activeSearchToken) return;
+        renderPartsTable();
+        updateStats();
+        renderRelatedList();
+        setSearchStatus(state.totalParts ? 'Results ready' : 'No matches');
+        showMessage(el.bootMessage, 'App loaded.', 'success');
+      } catch (err) {
+        setSearchStatus('Search failed');
+        showMessage(el.bootMessage, `Load failed: ${escapeHtml(err.message || String(err))}`, 'error');
+        throw err;
+      } finally {
+        state.isLoadingParts = false;
+        if (state.pendingLoadRequested) {
+          state.pendingLoadRequested = false;
+          const queuedReason = state.lastRequestedLoadReason || 'load';
+          queueMicrotask(() => {
+            loadParts(queuedReason).catch(err => showMessage(el.uploadMessage, `Load failed: ${escapeHtml(err.message || String(err))}`, 'error'));
+          });
+        }
+      }
     }
 
     function resetReview() {
@@ -1998,7 +2037,7 @@
 
         if (existing) {
           await mergeExisting(existing.id, payload);
-          await loadParts();
+          await loadParts('load');
           clearManualPartForm();
           return showMessage(el.manualPartMessage, 'Matching part + manufacturer already existed, so it was merged and the notes were kept.', 'success');
         }
@@ -2017,7 +2056,7 @@
           }
         }
 
-        await loadParts();
+        await loadParts('load');
         clearManualPartForm();
         showMessage(el.manualPartMessage, 'Part added.', 'success');
       } catch (err) {
@@ -2044,7 +2083,7 @@
 
         state.review.newParts.forEach(item => item.skip = true);
         renderReview();
-        await loadParts();
+        await loadParts('load');
         showMessage(el.uploadMessage, `${payload.length.toLocaleString()} new parts imported.`, 'success');
       } catch (err) {
         showMessage(el.uploadMessage, `Import error: ${escapeHtml(err.message)}`, 'error');
@@ -2081,7 +2120,7 @@
       try {
         await detectVehicleColumn();
         await detectPartLinksTable();
-        await loadParts();
+        await loadParts('load');
         populateVehicleFilter();
         if (!state.hasVehicleColumn) {
           showMessage(el.bootMessage, 'App loaded. Vehicle column not found in database yet. Truck / model will still be saved in notes until you add the vehicle column.', 'warning');
@@ -2156,20 +2195,20 @@
     function clearSearchOnly() {
       el.searchInput.value = '';
       state.currentPage = 1;
-      loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+      loadParts('search').catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
     }
 
     function clearVehicleOnly() {
       el.vehicleFilter.value = '';
       state.currentPage = 1;
-      loadParts().catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
+      loadParts('filter').catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
     }
 
     function resetSortOnly() {
       el.sortBy.value = 'ro_count';
       el.sortDirection.value = 'desc';
       state.currentPage = 1;
-      loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+      loadParts('sort').catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
     }
 
     function clearAllFilters() {
@@ -2178,7 +2217,8 @@
       el.sortBy.value = 'ro_count';
       el.sortDirection.value = 'desc';
       state.currentPage = 1;
-      loadParts().catch(err => showMessage(el.uploadMessage, `Clear filters failed: ${escapeHtml(err.message)}`, 'error'));
+      if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
+      loadParts('filter').catch(err => showMessage(el.uploadMessage, `Clear filters failed: ${escapeHtml(err.message)}`, 'error'));
     }
 
     async function init() {
@@ -2212,10 +2252,10 @@
           }
         });
 
-        const debouncedLoadParts = debounce(() => {
+        debouncedLoadParts = debounce(() => {
           state.currentPage = 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
-        }, 300);
+          loadParts('search').catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+        }, 350);
 
         el.loginBtn.addEventListener('click', login);
         el.signupBtn.addEventListener('click', signup);
@@ -2225,7 +2265,7 @@
             await detectVehicleColumn();
             await detectPartLinksTable();
             state.vehicleOptionsLoaded = false;
-            await loadParts();
+            await loadParts('load');
             populateVehicleFilter();
             showMessage(el.uploadMessage, 'Refreshed.', 'success');
           } catch (err) {
@@ -2246,43 +2286,44 @@
         el.searchInput.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
+            debouncedLoadParts.cancel();
             state.currentPage = 1;
-            loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+            loadParts('search').catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
           }
         });
         el.vehicleFilter.addEventListener('change', () => {
-          setSearchStatus('Loading filtered results...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           state.currentPage = 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('filter').catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.sortBy.addEventListener('change', () => {
-          setSearchStatus('Sorting results...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           state.currentPage = 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('sort').catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.sortDirection.addEventListener('change', () => {
-          setSearchStatus('Sorting results...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           state.currentPage = 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('sort').catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.prevPageBtn.addEventListener('click', () => {
-          setSearchStatus('Loading previous page...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           if (state.currentPage <= 1) return;
           state.currentPage -= 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('page').catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.nextPageBtn.addEventListener('click', () => {
-          setSearchStatus('Loading next page...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           const totalPages = Math.max(1, Math.ceil(Math.max(state.totalParts, 1) / state.pageSize));
           if (state.currentPage >= totalPages) return;
           state.currentPage += 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('page').catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.pageSizeSelect.addEventListener('change', () => {
-          setSearchStatus('Updating page size...');
+          if (debouncedLoadParts && debouncedLoadParts.cancel) debouncedLoadParts.cancel();
           state.pageSize = Number(el.pageSizeSelect.value || 100);
           state.currentPage = 1;
-          loadParts().catch(err => showMessage(el.uploadMessage, `Page size failed: ${escapeHtml(err.message)}`, 'error'));
+          loadParts('page').catch(err => showMessage(el.uploadMessage, `Page size failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
         el.clearFiltersBtn.addEventListener('click', clearAllFilters);
@@ -2292,7 +2333,7 @@
             if (el.sortBy.value === field) el.sortDirection.value = el.sortDirection.value === 'asc' ? 'desc' : 'asc';
             else el.sortBy.value = field;
             state.currentPage = 1;
-            loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+            loadParts('sort').catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
           });
         });
       } catch (err) {
