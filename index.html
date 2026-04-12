@@ -150,6 +150,137 @@
     .pager { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; }
     .pager button { width:auto; min-width:120px; }
     .pager .secondary { min-width:unset; }
+    .hero-bar {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+      background: linear-gradient(135deg, rgba(34,197,94,.12), rgba(15,23,42,.2));
+    }
+    .quick-jumps {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .jump-btn {
+      width:auto;
+      padding:10px 14px;
+      border-radius:999px;
+      background:#0b1220;
+      color:var(--text);
+      border:1px solid var(--border);
+      font-size:13px;
+      font-weight:700;
+    }
+    .search-card {
+      position: sticky;
+      top: 12px;
+      z-index: 3;
+      backdrop-filter: blur(10px);
+    }
+    .search-topline {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+    .search-status {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#0b1220;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:700;
+    }
+    .toolbar.toolbar-polish {
+      grid-template-columns: minmax(260px, 2.2fr) minmax(170px, 1fr) minmax(150px, .9fr) minmax(140px, .8fr) auto auto;
+    }
+    .input-stack {
+      display:grid;
+      gap:8px;
+    }
+    .inline-actions {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .inline-actions button,
+    .inline-actions select {
+      width:auto;
+    }
+    .chip-row {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:14px;
+      min-height:36px;
+      align-items:center;
+    }
+    .filter-chip {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background:#0b1220;
+      border:1px solid var(--border);
+      font-size:12px;
+      color:var(--text);
+    }
+    .filter-chip button {
+      width:auto;
+      min-width:unset;
+      padding:0;
+      background:transparent;
+      color:var(--muted);
+      border:none;
+      font-size:14px;
+      line-height:1;
+    }
+    .table-shell {
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      background:#08101d;
+    }
+    .result-count {
+      font-weight:700;
+      color:var(--text);
+    }
+    .note-preview {
+      max-width: 380px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--muted);
+    }
+    .part-number {
+      font-weight:800;
+      letter-spacing:.02em;
+    }
+    .table-tag {
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#0b1220;
+      font-size:12px;
+      color:var(--muted);
+    }
+    tbody tr:nth-child(even) td {
+      background: rgba(255,255,255,.015);
+    }
+    @media (max-width: 1100px) {
+      .toolbar.toolbar-polish { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -183,7 +314,7 @@
     </div>
 
     <div id="appShell" class="hidden">
-      <div class="card">
+      <div id="dashboardCard" class="card">
         <div class="section-title">
           <div>
             <h2>Dashboard</h2>
@@ -202,7 +333,20 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card hero-bar">
+        <div>
+          <h2 style="margin-bottom:6px;">Faster search workspace</h2>
+          <p class="muted" style="margin-bottom:0;">Jump to the section you need, keep search pinned near the top, and work the parts list without the page feeling crowded.</p>
+        </div>
+        <div class="quick-jumps">
+          <button type="button" class="jump-btn" onclick="document.getElementById('searchCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Search</button>
+          <button type="button" class="jump-btn" onclick="document.getElementById('uploadCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Upload</button>
+          <button type="button" class="jump-btn" onclick="document.getElementById('manualCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Add Part</button>
+          <button type="button" class="jump-btn" onclick="document.getElementById('tableCard').scrollIntoView({ behavior: 'smooth', block: 'start' })">Results</button>
+        </div>
+      </div>
+
+      <div id="uploadCard" class="card">
         <div class="section-title">
           <div>
             <h2>Upload Parts List</h2>
@@ -229,7 +373,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div id="manualCard" class="card">
         <div class="section-title">
           <div>
             <h2>Add Part Manually</h2>
@@ -294,17 +438,27 @@
         <div id="reviewList"></div>
       </div>
 
-      <div class="card">
+      <div id="searchCard" class="card search-card">
+        <div class="search-topline">
+          <div>
+            <h2 style="margin-bottom:6px;">Search and Sort Parts</h2>
+            <p class="muted" style="margin-bottom:0;">Search by part number, description, manufacturer, or truck / model.</p>
+          </div>
+          <div id="searchStatus" class="search-status">Ready to search</div>
+        </div>
         <div class="section-title">
           <div>
-            <h2>Search and Sort Parts</h2>
+            <h2 class="hidden">Search and Sort Parts</h2>
             <p class="muted">Search by part number, description, manufacturer, or truck / model.</p>
           </div>
         </div>
-        <div class="toolbar">
+        <div class="toolbar toolbar-polish">
           <div>
             <label>Search</label>
-            <input id="searchInput" placeholder="Type a part number, description, manufacturer, or truck" />
+            <div class="input-stack">
+              <input id="searchInput" placeholder="Type a part number, description, manufacturer, or truck" />
+              <span class="muted small">Search updates after a short pause so typing stays smooth.</span>
+            </div>
           </div>
           <div>
             <label>Truck / Model</label>
@@ -336,7 +490,12 @@
             <label>&nbsp;</label>
             <button id="exportCsvBtn" type="button" class="secondary">Export Filtered CSV</button>
           </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="clearFiltersBtn" type="button" class="secondary">Clear Filters</button>
+          </div>
         </div>
+        <div id="activeFilters" class="chip-row"></div>
       </div>
 
       <div id="relatedCard" class="card hidden">
@@ -375,7 +534,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div id="tableCard" class="card">
         <div class="section-title">
           <div>
             <h2>Parts Table</h2>
@@ -383,9 +542,15 @@
           </div>
         </div>
         <div class="table-meta">
-          <div id="resultsLine" class="muted small">Loading results...</div>
+          <div>
+            <div id="resultsLine" class="muted small">Loading results...</div>
+            <div id="tableSubline" class="small muted">Top matches refresh with search, filter, sort, and page changes.</div>
+          </div>
+          <div class="inline-actions">
+            <span class="table-tag">Fast mode on</span>
+          </div>
         </div>
-        <div style="overflow:auto; max-height: 65vh;">
+        <div class="table-shell" style="overflow:auto; max-height: 65vh;">
           <table>
             <thead>
               <tr>
@@ -493,7 +658,11 @@
       sortDirection: document.getElementById('sortDirection'),
       partsTbody: document.getElementById('partsTbody'),
       exportCsvBtn: document.getElementById('exportCsvBtn'),
+      clearFiltersBtn: document.getElementById('clearFiltersBtn'),
+      activeFilters: document.getElementById('activeFilters'),
+      searchStatus: document.getElementById('searchStatus'),
       resultsLine: document.getElementById('resultsLine'),
+      tableSubline: document.getElementById('tableSubline'),
       pageInfo: document.getElementById('pageInfo'),
       prevPageBtn: document.getElementById('prevPageBtn'),
       nextPageBtn: document.getElementById('nextPageBtn'),
@@ -720,16 +889,41 @@
         state.review.possibleDuplicates.filter(x => !x.skip).length;
     }
 
+    function setSearchStatus(text) {
+      if (el.searchStatus) el.searchStatus.textContent = text;
+    }
+
+    function renderActiveFilters() {
+      if (!el.activeFilters) return;
+      const chips = [];
+      const q = el.searchInput.value.trim();
+      const vehicle = el.vehicleFilter.value;
+      if (q) chips.push(`<span class="filter-chip">Search: ${escapeHtml(q)} <button type="button" onclick="clearSearchOnly()">×</button></span>`);
+      if (vehicle) chips.push(`<span class="filter-chip">Truck / Model: ${escapeHtml(vehicle)} <button type="button" onclick="clearVehicleOnly()">×</button></span>`);
+      if (el.sortBy.value !== 'ro_count' || el.sortDirection.value !== 'desc') {
+        const sortLabel = el.sortBy.options[el.sortBy.selectedIndex]?.text || el.sortBy.value;
+        const dirLabel = el.sortDirection.value === 'asc' ? 'Ascending' : 'Descending';
+        chips.push(`<span class="filter-chip">Sort: ${escapeHtml(sortLabel)} • ${escapeHtml(dirLabel)} <button type="button" onclick="resetSortOnly()">×</button></span>`);
+      }
+      el.activeFilters.innerHTML = chips.length ? chips.join('') : '<span class="muted small">No active filters. Showing the current result page.</span>';
+    }
+
     function updateResultsMeta() {
       const totalPages = Math.max(1, Math.ceil(Math.max(state.totalParts, 1) / state.pageSize));
       const start = state.totalParts ? ((state.currentPage - 1) * state.pageSize) + 1 : 0;
       const end = Math.min(state.totalParts, state.currentPage * state.pageSize);
-      el.resultsLine.textContent = state.totalParts
-        ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${state.totalParts.toLocaleString()} matching parts`
+      el.resultsLine.innerHTML = state.totalParts
+        ? `<span class="result-count">${start.toLocaleString()}–${end.toLocaleString()}</span> of ${state.totalParts.toLocaleString()} matching parts`
         : 'No matching parts found.';
+      if (el.tableSubline) {
+        el.tableSubline.textContent = state.totalParts
+          ? 'Use the search box, truck filter, and sort controls to narrow results faster.'
+          : 'Try a broader search, clear a filter, or change the sort order.';
+      }
       el.pageInfo.textContent = `Page ${Math.min(state.currentPage, totalPages)} of ${totalPages}`;
       el.prevPageBtn.disabled = state.currentPage <= 1;
       el.nextPageBtn.disabled = state.currentPage >= totalPages || state.totalParts === 0;
+      renderActiveFilters();
     }
 
     function renderPartsTable() {
@@ -740,15 +934,15 @@
       }
       el.partsTbody.innerHTML = state.filteredParts.map(part => `
         <tr>
-          <td>${escapeHtml(part.part_number_original)}</td>
+          <td><div class="part-number">${escapeHtml(part.part_number_original)}</div></td>
           <td>${escapeHtml(part.description || '')}</td>
           <td>${escapeHtml(part.manufacturer || '')}</td>
           <td>${escapeHtml(normalizeVehicleDisplay(part))}</td>
-          <td>${escapeHtml(part.ro_count || 0)}</td>
+          <td><span class="table-tag">${escapeHtml(part.ro_count || 0)} RO</span></td>
           <td>${escapeHtml(formatDate(part.created_at))}</td>
           <td>${escapeHtml(formatDate(part.updated_at))}</td>
           <td>${escapeHtml(part.uploaded_by || '')}</td>
-          <td>${escapeHtml(part.notes || '')}</td>
+          <td><div class="note-preview" title="${escapeHtml(part.notes || '')}">${escapeHtml(part.notes || '')}</div></td>
           <td>
             <div class="part-actions">
               <button type="button" class="secondary small" onclick="manageRelatedPart('${part.id}')">Related</button>
@@ -1034,12 +1228,14 @@
 
     async function loadParts() {
       const requestToken = ++state.activeSearchToken;
+      setSearchStatus('Loading results...');
       showMessage(el.bootMessage, 'Loading parts...', 'warning');
       await fetchPartsPage();
       if (requestToken !== state.activeSearchToken) return;
       renderPartsTable();
       updateStats();
       renderRelatedList();
+      setSearchStatus(state.totalParts ? 'Results ready' : 'No matches');
       showMessage(el.bootMessage, 'App loaded.', 'success');
     }
 
@@ -1859,6 +2055,35 @@
       showMessage(el.authMessage, 'Signed out.', 'success');
     }
 
+
+    function clearSearchOnly() {
+      el.searchInput.value = '';
+      state.currentPage = 1;
+      loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+    }
+
+    function clearVehicleOnly() {
+      el.vehicleFilter.value = '';
+      state.currentPage = 1;
+      loadParts().catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
+    }
+
+    function resetSortOnly() {
+      el.sortBy.value = 'ro_count';
+      el.sortDirection.value = 'desc';
+      state.currentPage = 1;
+      loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+    }
+
+    function clearAllFilters() {
+      el.searchInput.value = '';
+      el.vehicleFilter.value = '';
+      el.sortBy.value = 'ro_count';
+      el.sortDirection.value = 'desc';
+      state.currentPage = 1;
+      loadParts().catch(err => showMessage(el.uploadMessage, `Clear filters failed: ${escapeHtml(err.message)}`, 'error'));
+    }
+
     async function init() {
       try {
         if (!window.supabase || !window.supabase.createClient) {
@@ -1866,6 +2091,7 @@
           return;
         }
         state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        setSearchStatus('Ready to search');
         showMessage(el.bootMessage, 'App loaded.', 'success');
 
         const { data, error } = await state.supabase.auth.getSession();
@@ -1915,36 +2141,53 @@
         el.mergeAllExactBtn.addEventListener('click', mergeAllExact);
         el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
-        el.searchInput.addEventListener('input', debouncedLoadParts);
+        el.searchInput.addEventListener('input', () => {
+          setSearchStatus(el.searchInput.value.trim() ? 'Typing… searching soon' : 'Ready to search');
+          debouncedLoadParts();
+        });
+        el.searchInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            state.currentPage = 1;
+            loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+          }
+        });
         el.vehicleFilter.addEventListener('change', () => {
+          setSearchStatus('Loading filtered results...');
           state.currentPage = 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.sortBy.addEventListener('change', () => {
+          setSearchStatus('Sorting results...');
           state.currentPage = 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.sortDirection.addEventListener('change', () => {
+          setSearchStatus('Sorting results...');
           state.currentPage = 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.prevPageBtn.addEventListener('click', () => {
+          setSearchStatus('Loading previous page...');
           if (state.currentPage <= 1) return;
           state.currentPage -= 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.nextPageBtn.addEventListener('click', () => {
+          setSearchStatus('Loading next page...');
           const totalPages = Math.max(1, Math.ceil(Math.max(state.totalParts, 1) / state.pageSize));
           if (state.currentPage >= totalPages) return;
           state.currentPage += 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.pageSizeSelect.addEventListener('change', () => {
+          setSearchStatus('Updating page size...');
           state.pageSize = Number(el.pageSizeSelect.value || 100);
           state.currentPage = 1;
           loadParts().catch(err => showMessage(el.uploadMessage, `Page size failed: ${escapeHtml(err.message)}`, 'error'));
         });
         el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
+        el.clearFiltersBtn.addEventListener('click', clearAllFilters);
         document.querySelectorAll('th[data-sort]').forEach(th => {
           th.addEventListener('click', () => {
             const field = th.getAttribute('data-sort');
