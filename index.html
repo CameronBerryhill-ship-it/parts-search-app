@@ -146,6 +146,10 @@
     .related-list { display: grid; gap: 10px; }
     .related-chip { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#111827; margin:2px 6px 2px 0; font-size:12px; }
     .part-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .table-meta { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+    .pager { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+    .pager button { width:auto; min-width:120px; }
+    .pager .secondary { min-width:unset; }
   </style>
 </head>
 <body>
@@ -378,6 +382,9 @@
             <p class="muted">Shared master list.</p>
           </div>
         </div>
+        <div class="table-meta">
+          <div id="resultsLine" class="muted small">Loading results...</div>
+        </div>
         <div style="overflow:auto; max-height: 65vh;">
           <table>
             <thead>
@@ -397,6 +404,16 @@
             <tbody id="partsTbody"></tbody>
           </table>
         </div>
+        <div class="pager">
+          <button id="prevPageBtn" type="button" class="secondary">Previous</button>
+          <button id="nextPageBtn" type="button" class="secondary">Next</button>
+          <select id="pageSizeSelect" style="width:auto;">
+            <option value="50">50 rows</option>
+            <option value="100" selected>100 rows</option>
+            <option value="250">250 rows</option>
+          </select>
+          <div id="pageInfo" class="muted small">Page 1</div>
+        </div>
       </div>
     </div>
     <div class="footer-space"></div>
@@ -414,6 +431,12 @@
       user: null,
       allParts: [],
       filteredParts: [],
+      totalParts: 0,
+      currentPage: 1,
+      pageSize: 100,
+      activeSearchToken: 0,
+      vehicleOptionsLoaded: false,
+      relatedTargetParts: [],
       review: { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] },
       reviewVisible: { newParts: REVIEW_PAGE_SIZE, exactDuplicates: REVIEW_PAGE_SIZE, possibleDuplicates: REVIEW_PAGE_SIZE },
       supabase: null,
@@ -470,6 +493,11 @@
       sortDirection: document.getElementById('sortDirection'),
       partsTbody: document.getElementById('partsTbody'),
       exportCsvBtn: document.getElementById('exportCsvBtn'),
+      resultsLine: document.getElementById('resultsLine'),
+      pageInfo: document.getElementById('pageInfo'),
+      prevPageBtn: document.getElementById('prevPageBtn'),
+      nextPageBtn: document.getElementById('nextPageBtn'),
+      pageSizeSelect: document.getElementById('pageSizeSelect'),
       relatedCard: document.getElementById('relatedCard'),
       relatedMessage: document.getElementById('relatedMessage'),
       selectedPartDisplay: document.getElementById('selectedPartDisplay'),
@@ -494,6 +522,14 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function debounce(fn, delay = 300) {
+      let timer = null;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+      };
     }
 
     function normalizePartNumber(partNumber = '') {
@@ -676,22 +712,33 @@
     }
 
     function updateStats() {
-      el.statTotal.textContent = state.allParts.length;
+      el.statTotal.textContent = state.totalParts;
       el.statFiltered.textContent = state.filteredParts.length;
-      el.statTopRO.textContent = state.allParts.length ? Math.max(...state.allParts.map(p => Number(p.ro_count || 0))) : 0;
+      el.statTopRO.textContent = state.filteredParts.length ? Math.max(...state.filteredParts.map(p => Number(p.ro_count || 0))) : 0;
       el.statPending.textContent =
         state.review.exactDuplicates.filter(x => !x.skip).length +
         state.review.possibleDuplicates.filter(x => !x.skip).length;
     }
 
+    function updateResultsMeta() {
+      const totalPages = Math.max(1, Math.ceil(Math.max(state.totalParts, 1) / state.pageSize));
+      const start = state.totalParts ? ((state.currentPage - 1) * state.pageSize) + 1 : 0;
+      const end = Math.min(state.totalParts, state.currentPage * state.pageSize);
+      el.resultsLine.textContent = state.totalParts
+        ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${state.totalParts.toLocaleString()} matching parts`
+        : 'No matching parts found.';
+      el.pageInfo.textContent = `Page ${Math.min(state.currentPage, totalPages)} of ${totalPages}`;
+      el.prevPageBtn.disabled = state.currentPage <= 1;
+      el.nextPageBtn.disabled = state.currentPage >= totalPages || state.totalParts === 0;
+    }
+
     function renderPartsTable() {
       if (!state.filteredParts.length) {
         el.partsTbody.innerHTML = '<tr><td colspan="10" class="muted">No parts found.</td></tr>';
+        updateResultsMeta();
         return;
       }
-      el.partsTbody.innerHTML = state.filteredParts.map(part => {
-        const relatedCount = state.relatedPartsMap.get(part.id)?.length || 0;
-        return `
+      el.partsTbody.innerHTML = state.filteredParts.map(part => `
         <tr>
           <td>${escapeHtml(part.part_number_original)}</td>
           <td>${escapeHtml(part.description || '')}</td>
@@ -704,11 +751,11 @@
           <td>${escapeHtml(part.notes || '')}</td>
           <td>
             <div class="part-actions">
-              <button type="button" class="secondary small" onclick="manageRelatedPart('${part.id}')">Related (${relatedCount})</button>
+              <button type="button" class="secondary small" onclick="manageRelatedPart('${part.id}')">Related</button>
             </div>
           </td>
-        </tr>`;
-      }).join('');
+        </tr>`).join('');
+      updateResultsMeta();
     }
 
 
@@ -738,46 +785,68 @@
       }
     }
 
-    async function loadRelatedPartsMap() {
-      state.relatedPartsMap = new Map();
-      if (!state.hasPartLinksTable || !state.allParts.length) return;
+    async function loadRelatedPartsForSelected() {
+      if (!state.hasPartLinksTable || !state.selectedPartId) {
+        state.relatedPartsMap = new Map();
+        return;
+      }
 
+      const selectedId = state.selectedPartId;
+      const { data, error } = await state.supabase
+        .from('part_links')
+        .select('*')
+        .or(`part_id.eq.${selectedId},related_part_id.eq.${selectedId}`);
+
+      if (error) throw error;
+
+      const index = new Map(state.allParts.map(part => [part.id, part]));
+      const links = [];
+      for (const link of (data || [])) {
+        const otherId = link.part_id === selectedId ? link.related_part_id : link.part_id;
+        let otherPart = index.get(otherId);
+        if (!otherPart) {
+          const { data: partRows, error: partError } = await state.supabase
+            .from('parts')
+            .select('*')
+            .eq('id', otherId)
+            .limit(1);
+          if (partError) throw partError;
+          otherPart = partRows?.[0] || null;
+        }
+        if (!otherPart) continue;
+        links.push({ link_id: link.id, part: otherPart, relation_note: link.relation_note || '' });
+      }
+      state.relatedPartsMap = new Map([[selectedId, links]]);
+    }
+
+    async function loadRelatedTargetParts() {
       const pageSize = 1000;
       let from = 0;
       let keepGoing = true;
-      const links = [];
+      const rows = [];
 
       while (keepGoing) {
         const { data, error } = await state.supabase
-          .from('part_links')
-          .select('*')
+          .from('parts')
+          .select('id, part_number_original, manufacturer, description')
           .range(from, from + pageSize - 1);
+
         if (error) throw error;
-        if (!data || data.length === 0) {
-          keepGoing = false;
-          break;
-        }
-        links.push(...data);
+        if (!data || !data.length) break;
+
+        rows.push(...data);
         from += pageSize;
         if (data.length < pageSize) keepGoing = false;
       }
 
-      const partIndex = new Map(state.allParts.map(part => [part.id, part]));
-      for (const link of links) {
-        const left = partIndex.get(link.part_id);
-        const right = partIndex.get(link.related_part_id);
-        if (!left || !right) continue;
-        if (!state.relatedPartsMap.has(left.id)) state.relatedPartsMap.set(left.id, []);
-        if (!state.relatedPartsMap.has(right.id)) state.relatedPartsMap.set(right.id, []);
-        state.relatedPartsMap.get(left.id).push({ link_id: link.id, part: right, relation_note: link.relation_note || '' });
-        state.relatedPartsMap.get(right.id).push({ link_id: link.id, part: left, relation_note: link.relation_note || '' });
-      }
+      state.relatedTargetParts = rows;
     }
 
     function refreshRelatedTargetOptions() {
       const selectedId = state.selectedPartId;
       const currentValue = el.relatedTargetSelect.value;
-      const options = state.allParts
+      const sourceParts = state.relatedTargetParts.length ? state.relatedTargetParts : state.allParts;
+      const options = sourceParts
         .filter(part => part.id !== selectedId)
         .sort((a, b) => getPartLabel(a).localeCompare(getPartLabel(b)))
         .map(part => `<option value="${escapeHtml(part.id)}">${escapeHtml(getPartLabel(part))}</option>`)
@@ -818,51 +887,89 @@
         </div>`).join('');
     }
 
-    function populateVehicleFilter() {
-      const vehicles = [...new Set(state.allParts.map(normalizeVehicleDisplay).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      const current = el.vehicleFilter.value;
-      el.vehicleFilter.innerHTML = '<option value="">All Trucks / Models</option>' +
-        vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-      if (vehicles.includes(current)) el.vehicleFilter.value = current;
+    async function populateVehicleFilter() {
+      if (state.vehicleOptionsLoaded) return;
+      try {
+        const pageSize = 1000;
+        let from = 0;
+        let keepGoing = true;
+        const values = new Set();
+
+        while (keepGoing) {
+          const selectFields = state.hasVehicleColumn ? 'vehicle, notes' : 'notes';
+          const { data, error } = await state.supabase
+            .from('parts')
+            .select(selectFields)
+            .range(from, from + pageSize - 1);
+
+          if (error) throw error;
+          if (!data || !data.length) break;
+
+          data.forEach(row => {
+            const value = state.hasVehicleColumn ? (row.vehicle || extractVehicleFromNotes(row.notes)) : extractVehicleFromNotes(row.notes);
+            if (value) values.add(value);
+          });
+
+          from += pageSize;
+          if (data.length < pageSize) keepGoing = false;
+        }
+
+        const vehicles = [...values].sort((a, b) => a.localeCompare(b));
+        const current = el.vehicleFilter.value;
+        el.vehicleFilter.innerHTML = '<option value="">All Trucks / Models</option>' +
+          vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        if (vehicles.includes(current)) el.vehicleFilter.value = current;
+        state.vehicleOptionsLoaded = true;
+      } catch (err) {
+        console.error('Vehicle filter load failed:', err);
+      }
     }
 
-    function applyFilters() {
-      const q = el.searchInput.value.trim().toLowerCase();
+    function buildSearchOrClause(q) {
+      const cleaned = String(q || '').replace(/,/g, ' ').replace(/[()]/g, ' ').trim();
+      if (!cleaned) return '';
+      const pattern = `%${cleaned}%`;
+      const clauses = [
+        `part_number_original.ilike.${pattern}`,
+        `description.ilike.${pattern}`,
+        `manufacturer.ilike.${pattern}`,
+        `notes.ilike.${pattern}`
+      ];
+      if (state.hasVehicleColumn) clauses.push(`vehicle.ilike.${pattern}`);
+      return clauses.join(',');
+    }
+
+    async function fetchPartsPage() {
+      const q = el.searchInput.value.trim();
       const sortBy = el.sortBy.value;
       const direction = el.sortDirection.value;
       const selectedVehicle = el.vehicleFilter.value;
-      let parts = [...state.allParts];
+      const from = (state.currentPage - 1) * state.pageSize;
+      const to = from + state.pageSize - 1;
+      const sortField = sortBy === 'vehicle' && !state.hasVehicleColumn ? 'part_number_original' : sortBy;
+
+      let query = state.supabase
+        .from('parts')
+        .select('*', { count: 'exact' })
+        .order(sortField, { ascending: direction === 'asc' })
+        .range(from, to);
 
       if (selectedVehicle) {
-        parts = parts.filter(part => normalizeVehicleDisplay(part) === selectedVehicle);
+        if (state.hasVehicleColumn) query = query.eq('vehicle', selectedVehicle);
+        else query = query.ilike('notes', `%Vehicle: ${selectedVehicle}%`);
       }
 
       if (q) {
-        parts = parts.filter(part =>
-          String(part.part_number_original || '').toLowerCase().includes(q) ||
-          String(part.description || '').toLowerCase().includes(q) ||
-          String(part.manufacturer || '').toLowerCase().includes(q) ||
-          String(normalizeVehicleDisplay(part) || '').toLowerCase().includes(q) ||
-          String(part.notes || '').toLowerCase().includes(q)
-        );
+        const orClause = buildSearchOrClause(q);
+        if (orClause) query = query.or(orClause);
       }
 
-      parts.sort((a, b) => {
-        let av = sortBy === 'vehicle' ? normalizeVehicleDisplay(a) : (a[sortBy] ?? '');
-        let bv = sortBy === 'vehicle' ? normalizeVehicleDisplay(b) : (b[sortBy] ?? '');
-        if (sortBy === 'ro_count') {
-          av = Number(av || 0); bv = Number(bv || 0);
-          return direction === 'asc' ? av - bv : bv - av;
-        }
-        av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
-        if (av < bv) return direction === 'asc' ? -1 : 1;
-        if (av > bv) return direction === 'asc' ? 1 : -1;
-        return 0;
-      });
+      const { data, error, count } = await query;
+      if (error) throw error;
 
-      state.filteredParts = parts;
-      renderPartsTable();
-      updateStats();
+      state.filteredParts = data || [];
+      state.allParts = state.filteredParts;
+      state.totalParts = Number(count || 0);
     }
 
     async function fetchAllParts(orderBy = 'ro_count', ascending = false) {
@@ -894,6 +1001,28 @@
       return allParts;
     }
 
+    async function findExistingPartByPartAndManufacturer(partNumber, manufacturer) {
+      const { data, error } = await state.supabase
+        .from('parts')
+        .select('*')
+        .eq('part_number_original', partNumber)
+        .ilike('manufacturer', manufacturer)
+        .limit(1);
+
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+
+    async function findPartsByNormalizedPartNumber(partNumberNormalized) {
+      const { data, error } = await state.supabase
+        .from('parts')
+        .select('id, part_number_original, manufacturer, description')
+        .eq('part_number_normalized', partNumberNormalized);
+
+      if (error) throw error;
+      return data || [];
+    }
+
     async function detectVehicleColumn() {
       try {
         const { error } = await state.supabase.from('parts').select('vehicle').limit(1);
@@ -904,14 +1033,18 @@
     }
 
     async function loadParts() {
-      state.allParts = await fetchAllParts('ro_count', false);
-      await loadRelatedPartsMap();
-      populateVehicleFilter();
-      applyFilters();
+      const requestToken = ++state.activeSearchToken;
+      showMessage(el.bootMessage, 'Loading parts...', 'warning');
+      await fetchPartsPage();
+      if (requestToken !== state.activeSearchToken) return;
+      renderPartsTable();
+      updateStats();
       renderRelatedList();
+      showMessage(el.bootMessage, 'App loaded.', 'success');
     }
 
     function resetReview() {
+
       state.review = { rowsScanned: 0, newParts: [], exactDuplicates: [], possibleDuplicates: [] };
       state.reviewVisible = { newParts: REVIEW_PAGE_SIZE, exactDuplicates: REVIEW_PAGE_SIZE, possibleDuplicates: REVIEW_PAGE_SIZE };
       el.reviewCard.classList.add('hidden');
@@ -1339,7 +1472,8 @@
       const idx = state.allParts.findIndex(p => p.id === existingId);
       if (idx === -1 && updatedRow) {
         state.allParts.push(updatedRow);
-        applyFilters();
+        renderPartsTable();
+        updateStats();
         return;
       }
       if (idx === -1) return;
@@ -1371,7 +1505,8 @@
       }
 
       state.allParts[idx] = merged;
-      applyFilters();
+      renderPartsTable();
+      updateStats();
     }
 
     window.mergeExact = async function(index) {
@@ -1495,18 +1630,25 @@
         await createPartLink(state.selectedPartId, targetId, el.relatedLinkNote.value);
         el.relatedTargetSelect.value = '';
         el.relatedLinkNote.value = '';
-        await loadParts();
+        await loadRelatedPartsForSelected();
+        renderRelatedList();
         showMessage(el.relatedMessage, 'Parts linked.', 'success');
       } catch (err) {
         showMessage(el.relatedMessage, `Link failed: ${escapeHtml(err.message)}`, 'error');
       }
     }
 
-    window.manageRelatedPart = function(id) {
+    window.manageRelatedPart = async function(id) {
       state.selectedPartId = id;
-      showMessage(el.relatedMessage, '', 'success');
-      renderRelatedList();
-      el.relatedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showMessage(el.relatedMessage, 'Loading linked parts...', 'warning');
+      try {
+        if (!state.relatedTargetParts.length) await loadRelatedTargetParts();
+        await loadRelatedPartsForSelected();
+        renderRelatedList();
+        el.relatedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        showMessage(el.relatedMessage, `Linked parts failed to load: ${escapeHtml(err.message)}`, 'error');
+      }
     };
 
     window.removePartLink = async function(linkId) {
@@ -1514,7 +1656,8 @@
         if (!state.hasPartLinksTable) return;
         const { error } = await state.supabase.from('part_links').delete().eq('id', linkId);
         if (error) throw error;
-        await loadParts();
+        await loadRelatedPartsForSelected();
+        renderRelatedList();
         showMessage(el.relatedMessage, 'Link removed.', 'success');
       } catch (err) {
         showMessage(el.relatedMessage, `Remove failed: ${escapeHtml(err.message)}`, 'error');
@@ -1558,10 +1701,7 @@
           uploaded_by: state.user?.id || null
         };
 
-        const existing = state.allParts.find(part =>
-          buildPartManufacturerKey(part.part_number_original, part.manufacturer) ===
-          buildPartManufacturerKey(payload.part_number_original, payload.manufacturer)
-        );
+        const existing = await findExistingPartByPartAndManufacturer(payload.part_number_original, payload.manufacturer);
 
         if (existing) {
           await mergeExisting(existing.id, payload);
@@ -1577,7 +1717,7 @@
         if (insertedPart && state.hasPartLinksTable && relatedParts) {
           const requested = relatedParts.split(',').map(x => x.trim()).filter(Boolean);
           for (const relatedPartNumber of requested) {
-            const matches = state.allParts.filter(part => normalizePartNumber(part.part_number_original) === normalizePartNumber(relatedPartNumber));
+            const matches = await findPartsByNormalizedPartNumber(normalizePartNumber(relatedPartNumber));
             if (matches.length === 1) {
               try { await createPartLink(insertedPart.id, matches[0].id, 'Added from manual part form'); } catch (_) {}
             }
@@ -1649,6 +1789,7 @@
         await detectVehicleColumn();
         await detectPartLinksTable();
         await loadParts();
+        populateVehicleFilter();
         if (!state.hasVehicleColumn) {
           showMessage(el.bootMessage, 'App loaded. Vehicle column not found in database yet. Truck / model will still be saved in notes until you add the vehicle column.', 'warning');
         }
@@ -1707,6 +1848,11 @@
       state.user = null;
       state.allParts = [];
       state.filteredParts = [];
+      state.totalParts = 0;
+      state.currentPage = 1;
+      state.selectedPartId = null;
+      state.relatedPartsMap = new Map();
+      state.relatedTargetParts = [];
       resetReview();
       el.authCard.classList.remove('hidden');
       el.appShell.classList.add('hidden');
@@ -1742,6 +1888,11 @@
           }
         });
 
+        const debouncedLoadParts = debounce(() => {
+          state.currentPage = 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Search failed: ${escapeHtml(err.message)}`, 'error'));
+        }, 300);
+
         el.loginBtn.addEventListener('click', login);
         el.signupBtn.addEventListener('click', signup);
         el.logoutBtn.addEventListener('click', logout);
@@ -1749,7 +1900,9 @@
           try {
             await detectVehicleColumn();
             await detectPartLinksTable();
+            state.vehicleOptionsLoaded = false;
             await loadParts();
+            populateVehicleFilter();
             showMessage(el.uploadMessage, 'Refreshed.', 'success');
           } catch (err) {
             showMessage(el.uploadMessage, `Refresh failed: ${escapeHtml(err.message)}`, 'error');
@@ -1762,17 +1915,43 @@
         el.mergeAllExactBtn.addEventListener('click', mergeAllExact);
         el.mergeAllPossibleBtn.addEventListener('click', mergeAllPossible);
         el.importApprovedBtn.addEventListener('click', importApproved);
-        el.searchInput.addEventListener('input', applyFilters);
-        el.vehicleFilter.addEventListener('change', applyFilters);
-        el.sortBy.addEventListener('change', applyFilters);
-        el.sortDirection.addEventListener('change', applyFilters);
+        el.searchInput.addEventListener('input', debouncedLoadParts);
+        el.vehicleFilter.addEventListener('change', () => {
+          state.currentPage = 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Filter failed: ${escapeHtml(err.message)}`, 'error'));
+        });
+        el.sortBy.addEventListener('change', () => {
+          state.currentPage = 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+        });
+        el.sortDirection.addEventListener('change', () => {
+          state.currentPage = 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
+        });
+        el.prevPageBtn.addEventListener('click', () => {
+          if (state.currentPage <= 1) return;
+          state.currentPage -= 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
+        });
+        el.nextPageBtn.addEventListener('click', () => {
+          const totalPages = Math.max(1, Math.ceil(Math.max(state.totalParts, 1) / state.pageSize));
+          if (state.currentPage >= totalPages) return;
+          state.currentPage += 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Page failed: ${escapeHtml(err.message)}`, 'error'));
+        });
+        el.pageSizeSelect.addEventListener('change', () => {
+          state.pageSize = Number(el.pageSizeSelect.value || 100);
+          state.currentPage = 1;
+          loadParts().catch(err => showMessage(el.uploadMessage, `Page size failed: ${escapeHtml(err.message)}`, 'error'));
+        });
         el.exportCsvBtn.addEventListener('click', () => downloadCsv('parts-export.csv', state.filteredParts));
         document.querySelectorAll('th[data-sort]').forEach(th => {
           th.addEventListener('click', () => {
             const field = th.getAttribute('data-sort');
             if (el.sortBy.value === field) el.sortDirection.value = el.sortDirection.value === 'asc' ? 'desc' : 'asc';
             else el.sortBy.value = field;
-            applyFilters();
+            state.currentPage = 1;
+            loadParts().catch(err => showMessage(el.uploadMessage, `Sort failed: ${escapeHtml(err.message)}`, 'error'));
           });
         });
       } catch (err) {
